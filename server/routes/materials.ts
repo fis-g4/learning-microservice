@@ -62,6 +62,7 @@ router.post('/', async (req: Request, res: Response) => {
 })
 
 router.put('/:id', async (req: Request, res: Response) => {
+    //TODO: Check if user is the author of the material
     const material = await Material.findById(req.params.id)
 
     if (!material) {
@@ -80,6 +81,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (!title && !description && !price && !file && !type && !purchasers) {
         return res.status(400).json({ error: 'No fields to update provided' })
     }
+    
+
 
     if (title) material.title = title
     if (description) material.description = description
