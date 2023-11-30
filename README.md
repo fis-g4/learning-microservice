@@ -1,2 +1,3 @@
-# sample-microservice
-This is a base project to create a microservice using the following set of technologies: MongoDB, ExpressJS, ReactJS and NodeJS
+# learning-microservice
+
+This microservice is responsible for managing the classes and materials of the learning application

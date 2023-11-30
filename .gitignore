@@ -1,5 +1,5 @@
 # ------------------ NODE IGNORES ------------------
-
+GoogleCloudKey.json
 # Logs
 logs
 *.log
