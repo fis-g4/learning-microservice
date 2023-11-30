@@ -6,8 +6,8 @@ const router = express.Router()
 
 router.get("/:id", async (req: Request, res: Response) => {
     //TODO: Check if user has access to class
-    const classId = req.params.id
-    const classData = await Class.findById(classId)
+    
+    const classData = await Class.findById(req.params.id)
     if (classData) {
         return res.status(200).json(classData)
     }
@@ -57,7 +57,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     if (!_class) {
         return res.status(404).json({ error: 'Class not found' })
     }
-    console.log(req.body)
+
     const { 
         title,
         description, 
@@ -65,8 +65,6 @@ router.put("/:id", async (req: Request, res: Response) => {
         file,
     }: ClassInputs = req.body
 
-    console.log(_class)
-    console.log(title, description, order, file)
     if (!title && !description && !order && !file) {
         return res.status(400).json({
             error: 'No fields to update provided'
@@ -86,8 +84,8 @@ router.put("/:id", async (req: Request, res: Response) => {
 
 router.delete("/:id", async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
-    const classId = req.params.id
-    const classData = await Class.findById(classId)
+
+    const classData = await Class.findById(req.params.id)
     if (classData) {
         await classData.deleteOne()
         return res.status(200).json({ message: "Class deleted successfully" })
