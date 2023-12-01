@@ -29,7 +29,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MaterialBody'
+              $ref: '#/components/schemas/MaterialBodyPOST'
       responses:
         "201":
           description: Material created successfully
@@ -115,7 +115,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MaterialBody'
+              $ref: '#/components/schemas/MaterialBodyPUT'
       responses:
         "200":
           description: Successful response
@@ -206,34 +206,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /classes:
-    post:
-      tags:
-      - classes
-      summary: Add a new class
-      description: Creates a new class
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ClassBody'
-      responses:
-        "201":
-          description: Class created successfully
-        "400":
-          description: Client error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "401":
-          description: Authentication error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        "500":
-          description: Server error
   /classes/{classId}:
     get:
       tags:
@@ -284,7 +256,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClassBody'
+              $ref: '#/components/schemas/ClassBodyPUT'
       responses:
         "200":
           description: Successful response
@@ -344,9 +316,46 @@ paths:
                 $ref: '#/components/schemas/Error'
         "500":
           description: Server error
+  /classes/course/{courseId}:
+    post:
+      tags:
+      - classes
+      summary: Add a new class and associate it with a course
+      description: Creates a new class and associates it with the specified course
+      parameters:
+      - name: courseId
+        in: path
+        description: The id of the course to associate the class with
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassBodyPOST'
+      responses:
+        "201":
+          description: Class created successfully
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
 components:
   schemas:
-    MaterialBody:
+    MaterialBodyPOST:
       required:
       - currency
       - description
@@ -375,6 +384,49 @@ components:
           enum:
           - usd
           - eur
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+    MaterialBodyPUT:
+      required:
+      - currency
+      - description
+      - file
+      - price
+      - purchasers
+      - title
+      - type
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: array
+          items:
+            type: string
+          enum:
+          - usd
+          - eur
+        purchasers:
+          type: array
+          items:
+            type: string
         type:
           type: string
           enum:
@@ -431,7 +483,31 @@ components:
           - article
           - presentation
           - exercises
-    ClassBody:
+    ClassBodyPOST:
+      required:
+      - courseId
+      - description
+      - file
+      - order
+      - title
+      type: object
+      properties:
+        courseId:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+    ClassBodyPUT:
       required:
       - description
       - file
@@ -454,6 +530,7 @@ components:
           type: string
     ClassResponse:
       required:
+      - courseId
       - description
       - file
       - id
@@ -462,6 +539,8 @@ components:
       type: object
       properties:
         id:
+          type: string
+        courseId:
           type: string
         title:
           maxLength: 140
