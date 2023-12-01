@@ -24,6 +24,7 @@ paths:
       - materials
       summary: Add a new material
       description: Creates a new material
+      operationId: addMaterial
       requestBody:
         content:
           application/json:
@@ -180,6 +181,7 @@ paths:
       - materials
       summary: Get users who purchased the material by ID
       description: Get users who purchased the material by ID
+      operationId: getUsersForMaterial
       parameters:
       - name: materialId
         in: path
