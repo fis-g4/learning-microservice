@@ -1,0 +1,481 @@
+---
+openapi: 3.0.0
+info:
+  title: Learning Microservice
+  description: |
+    This microservice is responsible for managing the classes and materials of the learning application.  You can find out more about Learning Microservice at [GitHub repository](https://github.com/fis-g4/learning-microservice).
+  contact:
+    email: migromarj@alum.us.es
+  license:
+    name: MIT
+    url: https://github.com/fis-g4/learning-microservice/blob/main/LICENSE
+  version: 0.1.0
+servers:
+- url: https://server-learning-microservice-migromarj.cloud.okteto.net/api/v1
+tags:
+- name: materials
+  description: Operations about materials
+- name: classes
+  description: Operations about classes
+paths:
+  /materials:
+    post:
+      tags:
+      - materials
+      summary: Add a new material
+      description: Creates a new material
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialBody'
+      responses:
+        "201":
+          description: Material created successfully
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+  /materials/me:
+    get:
+      tags:
+      - materials
+      summary: Get materials created by the logged-in user
+      description: Get materials created by the logged-in user
+      operationId: getMaterials
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaterialResponse'
+        "500":
+          description: Server error
+  /materials/{materialId}:
+    get:
+      tags:
+      - materials
+      summary: Get material by ID
+      description: Returns a single material
+      operationId: getMaterialById
+      parameters:
+      - name: materialId
+        in: path
+        description: The id of the material to retrieve
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialResponse'
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+    put:
+      tags:
+      - materials
+      summary: Update material by ID
+      description: Update an existing material
+      operationId: updateMaterial
+      parameters:
+      - name: materialId
+        in: path
+        description: The id of the material to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialBody'
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialResponse'
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+    delete:
+      tags:
+      - materials
+      summary: Delete material by ID
+      description: Deletes a single material
+      operationId: deleteMaterialById
+      parameters:
+      - name: materialId
+        in: path
+        description: The id of the material to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Material deleted successfully
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+  /materials/{materialId}/users:
+    get:
+      tags:
+      - materials
+      summary: Get users who purchased the material by ID
+      description: Get users who purchased the material by ID
+      parameters:
+      - name: materialId
+        in: path
+        description: The id of the material to get users who purchased it
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /classes:
+    post:
+      tags:
+      - classes
+      summary: Add a new class
+      description: Creates a new class
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassBody'
+      responses:
+        "201":
+          description: Class created successfully
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+  /classes/{classId}:
+    get:
+      tags:
+      - classes
+      summary: Get class by ID
+      description: Returns a single class
+      operationId: getClassById
+      parameters:
+      - name: classId
+        in: path
+        description: The id of the class to retrieve
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+    put:
+      tags:
+      - classes
+      summary: Update class by ID
+      description: Update an existing class
+      operationId: updateClass
+      parameters:
+      - name: classId
+        in: path
+        description: The id of the class to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassBody'
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+    delete:
+      tags:
+      - classes
+      summary: Delete class by ID
+      description: Deletes a single class
+      operationId: deleteClassById
+      parameters:
+      - name: classId
+        in: path
+        description: The id of the class to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Class deleted successfully
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+components:
+  schemas:
+    MaterialBody:
+      required:
+      - currency
+      - description
+      - file
+      - price
+      - title
+      - type
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: array
+          items:
+            type: string
+          enum:
+          - usd
+          - eur
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+    MaterialResponse:
+      required:
+      - author
+      - currency
+      - description
+      - file
+      - id
+      - price
+      - purchasers
+      - title
+      - type
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: string
+          enum:
+          - usd
+          - eur
+        author:
+          type: string
+        purchasers:
+          type: array
+          items:
+            type: string
+        file:
+          type: string
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+    ClassBody:
+      required:
+      - description
+      - file
+      - order
+      - title
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+    ClassResponse:
+      required:
+      - description
+      - file
+      - id
+      - order
+      - title
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
