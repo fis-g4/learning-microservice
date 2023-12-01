@@ -135,7 +135,6 @@ router.put('/:id',  upload.single('file'), async (req: Request, res: Response) =
         return res.status(400).json({ error: 'No fields to update provided' })
     }
 
-
     if (req.file) {
       const newFileName = `${uuidv4()}-${req.file.originalname}`;
       const blob = bucket.file(newFileName);
@@ -156,7 +155,7 @@ router.put('/:id',  upload.single('file'), async (req: Request, res: Response) =
           if (material.file) {
               const oldFileName = getFileNameFromUrl(material.file);
               if (oldFileName) {
-                await bucket.file(oldFileName).delete();
+                  await storage.bucket('tu-bucket').file(oldFileName).delete();
               }
           }
 
