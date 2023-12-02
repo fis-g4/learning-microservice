@@ -11,3 +11,10 @@ interface MaterialInputs {
     file: string
     type: 'book' | 'article' | 'presentation' | 'exercises'
 }
+
+interface ClassInputs {
+    title: string
+    description: string
+    order: number
+    file: string
+}

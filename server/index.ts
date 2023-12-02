@@ -1,5 +1,6 @@
 import express, { Express, Request, Response } from 'express'
 import cors from 'cors'
+import classes from './routes/classes'
 import users from './routes/users'
 import materials from './routes/materials'
 import './loadEnvironment'
@@ -23,5 +24,6 @@ app.listen(port, () => {
 
 app.use(API_VERSION + '/users', users)
 app.use(API_VERSION + '/materials', materials)
+app.use(API_VERSION + '/classes', classes)
 
 module.exports = app
