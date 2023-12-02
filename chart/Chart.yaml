@@ -1,0 +1,6 @@
+apiVersion: v1
+name: learning-microservice
+description: Learning microservice for FIS-G4
+type: application
+version: 0.1.0
+appVersion: "0.0.0"

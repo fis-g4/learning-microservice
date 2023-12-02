@@ -112,6 +112,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
 });
 
 router.put('/:id',  upload.single('file'), async (req: Request, res: Response) => {
+
     const material = await Material.findById(req.params.id)
 
     if (!material) {
@@ -137,6 +138,8 @@ router.put('/:id',  upload.single('file'), async (req: Request, res: Response) =
     if (!title && !description && !price && !req.file && !type && !purchasers) {
         return res.status(400).json({ error: 'No fields to update provided' })
     }
+    
+
 
 
     if (req.file) {
