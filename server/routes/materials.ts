@@ -1,8 +1,7 @@
 import express, { Request, Response } from 'express'
-import mongoose from 'mongoose'
 import { IUser, getPayloadFromToken } from '../utils/jwtUtils'
 
-import { Material } from '../db/models/material'
+import { Material, MaterialDoc } from '../db/models/material'
 
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
@@ -31,92 +30,149 @@ function getFileNameFromUrl(url: string): string | null {
 // ------------------------ GET ROUTES ------------------------
 
 router.get('/me', async (req: Request, res: Response) => {
-    let decodedToken: IUser = getPayloadFromToken(req)
-    const userId = decodedToken._id
+    try {
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
 
-    await Material.find({ author: userId }).then((materials) => {
-        res.status(200).json(materials)
-    })
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+
+        await Material.find({ author: username }).then((materials) => {
+            res.status(200).json(materials.map((material) => material.toJSON()))
+        })
+    } catch (error) {
+        return res.status(500).send()
+    }
 })
 
 router.get('/:id', async (req: Request, res: Response) => {
-    //TODO: Check if user has access to material
-    const material = await Material.findById(req.params.id)
-    if (material) {
-        return res.status(200).json(material)
+    try {
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+        const material = await Material.findById(req.params.id)
+        if (!material) {
+            return res.status(404).json({ error: 'Material not found' })
+        }
+        if (
+            material.author === username ||
+            material.price === 0 ||
+            material.purchasers.includes(username)
+        ) {
+            return res.status(200).json(material.toJSON())
+        }
+        return res.status(403).json({
+            error: 'Unauthorized: You are not the author of this material or you have not purchased it',
+        })
+    } catch (error) {
+        return res.status(500).send()
     }
-    return res.status(404).json({ error: 'Material not found' })
 })
 
 router.get('/:id/users', async (req: Request, res: Response) => {
-    //TODO: Check if user that is requesting is the author of the material
-    const material = await Material.findById(req.params.id)
-    if (material) {
-        //TODO: Return the users information
-        return res.status(200).json({ purchasers: material.purchasers })
+    try {
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+        const material = await Material.findById(req.params.id)
+        if (!material) {
+            return res.status(404).json({ error: 'Material not found' })
+        }
+        if (material.author === username) {
+            return res.status(200).json({ purchasers: material.purchasers })
+        }
+        return res.status(403).json({
+            error: 'Unauthorized: You are not the author of this material',
+        })
+    } catch (error) {
+        return res.status(500).send()
     }
-    return res.status(404).json({ error: 'Material not found' })
 })
 
 // ------------------------ POST ROUTES ------------------------
 
 router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     try {
-        const { title, description, price, type }: MaterialInputs = req.body
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
 
-        if (!title || !description || !price || !req.file || !type) {
-            return res.status(400).json({
-                error: 'Missing required fields (title, description, price, file, type)',
-            })
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
         }
 
-        // TODO: Change to logged user
-        const author = new mongoose.Types.ObjectId('60d5ecb44b930ac130e82d7e')
+        const { title, description, price, currency, type }: MaterialInputs =
+            req.body
 
-        const newMaterial = Material.build({
+        if (
+            !title ||
+            !description ||
+            !price ||
+            !currency ||
+            !req.file ||
+            !type
+        ) {
+            return res.status(400).json({
+                error: 'Missing required fields: title, description, price, currency (EUR or USD), file, type (book, article, presentation or exercises)',
+            })
+        }
+        const newMaterial: MaterialDoc = Material.build({
             title,
             description,
             price,
-            author,
+            author: username,
             purchasers: [],
+            currency,
             file: 'dummy',
             type,
         })
 
+        let savedMaterial: MaterialDoc
+
         try {
-            const savedMaterial = await newMaterial.save()
-
-            const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
-            const blobStream = blob.createWriteStream({
-                metadata: {
-                    contentType: req.file.mimetype,
-                },
-            })
-
-            blobStream.on('error', async (err) => {
-                console.error('Error al subir el archivo:', err)
-                await Material.deleteOne({ _id: savedMaterial._id })
-                res.status(500).json({ error: 'Error uploading file.' })
-            })
-
-            blobStream.on('finish', async () => {
-                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
-                savedMaterial.file = publicUrl
-                const updatedMaterial = await savedMaterial.save()
-                res.status(201).json(updatedMaterial)
-            })
-
-            blobStream.end(req.file.buffer)
-        } catch (error) {
-            console.error(
-                'Error al guardar el material en la base de datos:',
-                error
-            )
-            res.status(500).json({ error: 'Error saving material.' })
+            savedMaterial = await newMaterial.save()
+        } catch (err: any) {
+            return res
+                .status(400)
+                .json({ error: err.message ?? 'Invalid data' })
         }
+
+        const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        const blobStream = blob.createWriteStream({
+            metadata: {
+                contentType: req.file.mimetype,
+            },
+        })
+
+        blobStream.on('error', async (err) => {
+            await Material.deleteOne({ _id: savedMaterial._id })
+            return res.status(500).send()
+        })
+
+        blobStream.on('finish', async () => {
+            const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+            savedMaterial.file = publicUrl
+            await savedMaterial.save()
+            return res
+                .status(201)
+                .json({ message: 'Material created successfully' })
+        })
+
+        blobStream.end(req.file.buffer)
     } catch (error) {
-        console.error('Error en la solicitud:', error)
-        res.status(500).json({ error: 'Internal Server Error' })
+        return res.status(500).send()
     }
 })
 
@@ -126,45 +182,64 @@ router.put(
     '/:id',
     upload.single('file'),
     async (req: Request, res: Response) => {
-        const material = await Material.findById(req.params.id)
+        try {
+            let decodedToken: IUser = getPayloadFromToken(req)
+            const username: string = decodedToken.username
+            if (!username) {
+                return res
+                    .status(401)
+                    .json({ error: 'Unauthenticated: You are not logged in' })
+            }
+            const material = await Material.findById(req.params.id)
+            if (!material) {
+                return res.status(404).json({ error: 'Material not found' })
+            }
 
-        if (!material) {
-            return res.status(404).json({ error: 'Material not found' })
-        }
-        // TODO: Check if user is owner in order to update the material
-        // const author = material.author
-        // const authenticatedUserId = req.user ? req.user.id : null;
+            if (material.author !== username) {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the author of this material',
+                })
+            }
 
-        // if (authenticatedUserId !== author.toString()) {
-        //     return res.status(403).json({ error: 'Unauthorized: You are not the author of this material' });
-        // }
+            const {
+                title,
+                description,
+                price,
+                currency,
+                type,
+                purchasers,
+            }: MaterialInputs = req.body
 
-        const { title, description, price, type, purchasers }: MaterialInputs =
-            req.body
+            if (
+                !title &&
+                !description &&
+                !price &&
+                !currency &&
+                !req.file &&
+                !type &&
+                !purchasers
+            ) {
+                return res
+                    .status(400)
+                    .json({ error: 'No fields to update provided' })
+            }
 
-        if (
-            !title &&
-            !description &&
-            !price &&
-            !req.file &&
-            !type &&
-            !purchasers
-        ) {
-            return res
-                .status(400)
-                .json({ error: 'No fields to update provided' })
-        }
-
-        if (req.file) {
-            try {
+            if (req.file) {
                 if (title) material.title = title
                 if (description) material.description = description
                 if (price) material.price = price
+                if (currency) material.currency = currency
                 if (purchasers) material.purchasers = purchasers
                 if (type) material.type = type
 
-                const updatedMaterial = await material.save()
-
+                let updatedMaterial: MaterialDoc
+                try {
+                    updatedMaterial = await material.save()
+                } catch (err: any) {
+                    return res
+                        .status(400)
+                        .json({ error: err.message ?? 'Invalid data' })
+                }
                 const newFileName = `${uuidv4()}-${req.file.originalname}`
                 const blob = bucket.file(newFileName)
 
@@ -176,9 +251,7 @@ router.put(
 
                 blobStream.on('error', (err) => {
                     console.error('Error al subir el nuevo archivo:', err)
-                    return res
-                        .status(500)
-                        .json({ error: 'Error uploading file.' })
+                    return res.status(500).send()
                 })
 
                 blobStream.on('finish', async () => {
@@ -188,29 +261,36 @@ router.put(
                             await bucket.file(oldFileName).delete()
                         }
                     }
-                    const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                    const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
                     updatedMaterial.file = publicUrl
-                    const updatedMaterialWithFile = await updatedMaterial.save()
-                    res.status(200).json(updatedMaterialWithFile)
+                    const updatedMaterialWithFile: MaterialDoc =
+                        await updatedMaterial.save()
+                    return res
+                        .status(200)
+                        .json(updatedMaterialWithFile.toJSON())
                 })
 
                 blobStream.end(req.file.buffer)
-            } catch (error) {
-                console.error(
-                    'Error al guardar el material en la base de datos:',
-                    error
-                )
-                res.status(500).json({ error: 'Error saving material.' })
-            }
-        } else {
-            if (title) material.title = title
-            if (description) material.description = description
-            if (price) material.price = price
-            if (purchasers) material.purchasers = purchasers
-            if (type) material.type = type
+            } else {
+                if (title) material.title = title
+                if (description) material.description = description
+                if (price) material.price = price
+                if (currency) material.currency = currency
+                if (purchasers) material.purchasers = purchasers
+                if (type) material.type = type
 
-            const updatedMaterial = await material.save()
-            return res.status(200).json(updatedMaterial)
+                let updatedMaterial: MaterialDoc
+                try {
+                    updatedMaterial = await material.save()
+                } catch (err: any) {
+                    return res
+                        .status(400)
+                        .json({ error: err.message ?? 'Invalid data' })
+                }
+                return res.status(200).json(updatedMaterial.toJSON())
+            }
+        } catch (error) {
+            return res.status(500).send()
         }
     }
 )
@@ -218,35 +298,36 @@ router.put(
 // ------------------------ DELETE ROUTES ------------------------
 
 router.delete('/:id', async (req: Request, res: Response) => {
-    const material = await Material.findById(req.params.id)
-    if (!material) {
-        return res.status(404).json({ error: 'Material not found' })
-    }
-
-    // TODO: Check if user is the author of the material
-    // const authenticatedUserId = req.user ? req.user.id : null;
-
-    // // Comparar el usuario autenticado con el autor del material
-    // if (authenticatedUserId !== material.author.toString()) {
-    //     return res.status(403).json({ error: 'Unauthorized: You are not the author of this material' });
-    // }
-
-    const fileUrl = material.file
-    const fileName = fileUrl.split('/').pop()
-
     try {
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+        const material = await Material.findById(req.params.id)
+        if (!material) {
+            return res.status(404).json({ error: 'Material not found' })
+        }
+
+        if (material.author !== username) {
+            return res.status(403).json({
+                error: 'Unauthorized: You are not the author of this material',
+            })
+        }
+
+        const fileUrl: string = material.file
+        const fileName = fileUrl.split('/').pop()
+
         if (fileName !== undefined) {
             await bucket.file(fileName).delete()
         }
+        await material.deleteOne()
+        return res.status(204).send()
     } catch (error) {
-        console.error('Error deleting file from bucket:', error)
-        return res
-            .status(500)
-            .json({ error: 'Error deleting file from bucket' })
+        return res.status(500).send()
     }
-
-    await material.deleteOne()
-    return res.status(200).send('Material deleted successfully')
 })
 
 export default router
