@@ -9,6 +9,8 @@ on:
     pull_request:
         branches: [main, develop]
 
+env:
+    JWT_SECRET: ${{secrets.JWT_SECRET}}
 jobs:
     build:
         runs-on: ubuntu-latest
