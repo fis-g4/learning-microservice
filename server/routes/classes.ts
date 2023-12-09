@@ -1,9 +1,32 @@
 import express, { Request, Response } from 'express'
 import { Class } from '../db/models/class'
+import multer from 'multer';
+import { v4 as uuidv4 } from 'uuid';
+import { Storage } from '@google-cloud/storage';
 import mongoose from 'mongoose'
 
 const router = express.Router()
+const storage = new Storage({
+    keyFilename: './GoogleCloudKey.json',
+  });
 
+const bucketName = 'classes-bucket';
+const bucket = storage.bucket(bucketName);
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5 MB
+    },
+    });
+
+function getFileNameFromUrl(url: string): string | null {
+    const match = url.match(/\/([^\/?#]+)[^\/]*$/);
+    return match ? match[1] : null;
+}
+
+
+      
 router.get("/:id", async (req: Request, res: Response) => {
     //TODO: Check if user has access to class
     
@@ -27,28 +50,65 @@ this is responsible of another microservice
 
 //TODO: Connect to course microservice in frontend
 
-router.post("/", async (req: Request, res: Response) => {
-    const { title, description, order, file }: ClassInputs = req.body
+router.post("/", upload.single('file'), async (req: Request, res: Response) => {
+    
+    try{
 
-    if (!title || !description || !order || !file) {
-        return res.status(400).json({
-            error: "Missing required fields (title, description, order, file)",
-        })
+
+        const { title, description, order }: ClassInputs = req.body
+
+        if (!title || !description || !order || !req.file) {
+            return res.status(400).json({
+                error: "Missing required fields (title, description, order, file)",
+            })
+        }
+
+        const newClass = Class.build({
+            title,
+            description,
+            order,
+            file: 'dummy',
+        });
+
+        try{
+
+            const savedClass = await newClass.save()
+
+            //Save blob to storage
+            const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`);
+            const blobStream = blob.createWriteStream({
+                metadata: {
+                    contentType: req.file.mimetype,
+                },
+            });
+
+            //Error case
+            blobStream.on('error', async (err) => {
+                console.error('Error al subir el archivo:', err);
+                await Class.deleteOne({ _id: savedClass._id });
+                res.status(500).json({ error: 'Error uploading file.' });
+            });
+
+            //Case success
+            blobStream.on('finish', async () => {
+                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`;
+                savedClass.file = publicUrl;
+                const updatedClass = await savedClass.save();
+                res.status(201).json(updatedClass);
+            });
+
+            blobStream.end(req.file.buffer);
+        } catch (error) {
+            console.error('Error al guardar la clase en la base de datos:', error);
+            res.status(500).json({ error: 'Error saving class.' });
+        }
+    } catch (error) {
+        console.error('Error en la solicitud:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
+});
 
-    const newClass = Class.build({
-        title,
-        description,
-        order,
-        file,
-    })
-
-    const savedClass = await newClass.save()
-
-    return res.status(200).json(savedClass)
-})
-
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", upload.single('file'), async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     
     
@@ -62,24 +122,67 @@ router.put("/:id", async (req: Request, res: Response) => {
         title,
         description, 
         order,
-        file,
     }: ClassInputs = req.body
 
-    if (!title && !description && !order && !file) {
+    if (!title && !description && !order && !req.file) {
         return res.status(400).json({
             error: 'No fields to update provided'
         })
     }
 
-    
-    if(title) _class.title = title
-    if(description) _class.description = description
-    if(order) _class.order = order
-    if(file) _class.file = file
+    // Option 1: Update file (and fields)
+    if (req.file) {
+        try{
+            if(title) _class.title = title
+            if(description) _class.description = description
+            if(order) _class.order = order
 
-    const savedClass = await _class.save()
-    return res.status(200).json(savedClass)
+            const savedClass = await _class.save()
+            
+            const newFileName = `${uuidv4()}-${req.file.originalname}`
+            const blob = bucket.file(newFileName);
+
+            const blobStream = blob.createWriteStream({
+                metadata: {
+                    contentType: req.file.mimetype,
+                },
+            });
+
+            blobStream.on('error', (err) => {
+                console.error('Error al subir el nuevo archivo:', err)
+                return res.status(500).json({ error: 'Error uploading file.' })
+            });
+
+            blobStream.on('finish', async () => {
+            
+                if (_class.file) {
+                    const oldFileName = getFileNameFromUrl(_class.file)
+                    if (oldFileName) {
+                      await bucket.file(oldFileName).delete()
+                    }
+                }
+                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                savedClass.file = publicUrl
+                const updatedClassWithFile = await savedClass.save()
+                res.status(200).json(updatedClassWithFile)
     
+            })
+
+            blobStream.end(req.file.buffer);
+            }
+            catch (error) {
+            console.error('Error al guardar la clase en la base de datos:', error);
+            res.status(500).json({ error: 'Error saving class.' });
+            }
+    // Option 2: Update fields
+    } else {
+        if(title) _class.title = title
+        if(description) _class.description = description
+        if(order) _class.order = order
+
+        const savedClass = await _class.save()
+        return res.status(200).json(savedClass)
+    }
 })
 
 router.delete("/:id", async (req: Request, res: Response) => {
@@ -87,6 +190,20 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
     const classData = await Class.findById(req.params.id)
     if (classData) {
+        const fileUrl = classData.file;
+        const fileName = fileUrl.split('/').pop();
+
+        try {
+            //Delete file from bucket
+            if (fileName !== undefined){
+                await bucket.file(fileName).delete();
+            }
+            
+        } catch (error) {
+            console.error('Error deleting file from bucket:', error);
+            return res.status(500).json({ error: 'Error deleting file from bucket' });
+        }
+
         await classData.deleteOne()
         return res.status(200).json({ message: "Class deleted successfully" })
     }
