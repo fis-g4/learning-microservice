@@ -1,38 +1,29 @@
 import request from 'supertest'
-import dotenv from 'dotenv'
-import { IPayload } from '../utils/jwtUtils'
 import jwt from 'jsonwebtoken'
 
+import { IPayload } from '../utils/jwtUtils'
 import { Material } from '../db/models/material'
 
+import dotenv from 'dotenv'
 dotenv.config()
+
 const app = require('../app')
 
-jest.mock('@google-cloud/storage', () => {
-    const createWriteStreamMock = jest.fn()
-    createWriteStreamMock.mockReturnValue({
-        on: jest.fn((event: string, callback: Function) => {
-            if (event === 'error') {
-                return
-            } else if (event === 'finish') {
-                return callback()
-            }
-        }),
-        end: jest.fn(),
-    })
+const URL_BASE = '/api/v1/materials'
+const JSON_WEB_TOKEN =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
+const UNAUTHORIZED_JWT =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcnRhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MDAsImV4cCI6MTczMzU5ODkwMH0.Vvw5IZy7u35VBuodZTauln1Nf7PDDaOcNQbHuIE4F5c'
+const JWT_SECRET = 'secret'
 
-    return {
-        Storage: jest.fn(() => ({
-            bucket: jest.fn(() => ({
-                file: jest.fn(() => ({
-                    createWriteStream: createWriteStreamMock,
-                    delete: jest.fn(),
-                })),
-            })),
-        })),
-    }
-})
+// Function to verify a token
+const verifyToken = (token: string) => {
+    return jwt.verify(token, JWT_SECRET, {
+        algorithms: ['HS256'],
+    }) as IPayload
+}
 
+// Materials to use in tests
 const materials = [
     new Material({
         _id: '615e2f3b1d9f9b2b4c9e9b1a',
@@ -72,19 +63,70 @@ const materials = [
     }),
 ]
 
-const URL_BASE = '/api/v1/materials'
-const JSON_WEB_TOKEN =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
-const UNAUTHORIZED_JWT =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcnRhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MDAsImV4cCI6MTczMzU5ODkwMH0.Vvw5IZy7u35VBuodZTauln1Nf7PDDaOcNQbHuIE4F5c'
-const JWT_SECRET = 'secret'
+// Endpoints to test
 
+const myMaterialsEndpoint = `${URL_BASE}/me`
+const materialUsersEndpoint = `${URL_BASE}/${materials[0]._id}/users`
+const specificMaterialEndpoint = `${URL_BASE}/${materials[0]._id}`
+
+// Google cloud storage mock
+jest.mock('@google-cloud/storage', () => {
+    const createWriteStreamMock = jest.fn()
+    createWriteStreamMock.mockReturnValue({
+        on: jest.fn((event: string, callback: Function) => {
+            if (event === 'error') {
+                return
+            } else if (event === 'finish') {
+                return callback()
+            }
+        }),
+        end: jest.fn(),
+    })
+
+    return {
+        Storage: jest.fn(() => ({
+            bucket: jest.fn(() => ({
+                file: jest.fn(() => ({
+                    createWriteStream: createWriteStreamMock,
+                    delete: jest.fn(),
+                })),
+            })),
+        })),
+    }
+})
+
+//Multer mock
+type MockRequest = {
+    file: {
+        originalname: string
+        mimetype: string
+        buffer: Buffer
+    }
+}
+
+type MockNextFunction = () => void
+
+const mockMulter = {
+    memoryStorage: jest.fn(() => ({
+        single: jest.fn(
+            (fieldName: string) =>
+                (req: MockRequest, res: any, next: MockNextFunction) => {
+                    req.file = {
+                        originalname: 'mockedFile.txt',
+                        mimetype: 'text/plain',
+                        buffer: Buffer.from('Mocked file content'),
+                    }
+                    next()
+                }
+        ),
+    })),
+}
+
+// Materials API tests
 describe('Materials API', () => {
     describe('GET /materials/:me', () => {
         let findMaterialsByUsernameMock: jest.SpyInstance
-        let payload: IPayload = jwt.verify(JSON_WEB_TOKEN, JWT_SECRET, {
-            algorithms: ['HS256'],
-        }) as IPayload
+        const payload: IPayload = verifyToken(JSON_WEB_TOKEN)
         const usernameFromToken = payload.payload.username
 
         beforeAll(() => {
@@ -98,7 +140,7 @@ describe('Materials API', () => {
                 )
             )
             const response = await request(app)
-                .get(`${URL_BASE}/me`)
+                .get(myMaterialsEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(200)
@@ -106,7 +148,7 @@ describe('Materials API', () => {
         })
 
         it('Should return unauthenticated error', async () => {
-            const response = await request(app).get(`${URL_BASE}/me`)
+            const response = await request(app).get(myMaterialsEndpoint)
 
             expect(response.status).toBe(401)
         })
@@ -116,7 +158,7 @@ describe('Materials API', () => {
                 Promise.reject('Internal server error')
             )
             const response = await request(app)
-                .get(`${URL_BASE}/me`)
+                .get(myMaterialsEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(500)
@@ -135,7 +177,7 @@ describe('Materials API', () => {
                 Promise.resolve(materials[0])
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}`)
+                .get(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(200)
@@ -143,9 +185,7 @@ describe('Materials API', () => {
         })
 
         it('Should return unauthenticated error', async () => {
-            const response = await request(app).get(
-                `${URL_BASE}/${materials[0]._id}`
-            )
+            const response = await request(app).get(specificMaterialEndpoint)
 
             expect(response.status).toBe(401)
         })
@@ -155,7 +195,7 @@ describe('Materials API', () => {
                 Promise.resolve(materials[0])
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}`)
+                .get(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
 
             expect(response.status).toBe(403)
@@ -166,7 +206,7 @@ describe('Materials API', () => {
                 Promise.resolve()
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}`)
+                .get(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(404)
@@ -177,7 +217,7 @@ describe('Materials API', () => {
                 Promise.reject('Internal server error')
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}`)
+                .get(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(500)
@@ -196,7 +236,7 @@ describe('Materials API', () => {
                 Promise.resolve(materials[0])
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}/users`)
+                .get(materialUsersEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(200)
@@ -206,9 +246,7 @@ describe('Materials API', () => {
         })
 
         it('Should return unauthenticated error', async () => {
-            const response = await request(app).get(
-                `${URL_BASE}/${materials[0]._id}/users`
-            )
+            const response = await request(app).get(materialUsersEndpoint)
 
             expect(response.status).toBe(401)
         })
@@ -218,7 +256,7 @@ describe('Materials API', () => {
                 Promise.resolve(materials[0])
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}/users`)
+                .get(materialUsersEndpoint)
                 .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
 
             expect(response.status).toBe(403)
@@ -229,7 +267,7 @@ describe('Materials API', () => {
                 Promise.resolve()
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}/users`)
+                .get(materialUsersEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(404)
@@ -240,7 +278,7 @@ describe('Materials API', () => {
                 Promise.reject('Internal server error')
             )
             const response = await request(app)
-                .get(`${URL_BASE}/${materials[0]._id}/users`)
+                .get(materialUsersEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(500)
@@ -251,23 +289,6 @@ describe('Materials API', () => {
         let createMaterialMock: jest.SpyInstance
         beforeAll(() => {
             createMaterialMock = jest.spyOn(Material.prototype, 'save')
-
-            const mockMulter = {
-                memoryStorage: jest.fn(() => ({
-                    single: jest.fn(
-                        (fieldName: string) =>
-                            (req: any, res: any, next: any) => {
-                                req.file = {
-                                    originalname: 'mockedFile.txt',
-                                    mimetype: 'text/plain',
-                                    buffer: Buffer.from('Mocked file content'),
-                                }
-                                next()
-                            }
-                    ),
-                })),
-            }
-
             jest.mock('multer', () => mockMulter)
         })
 
@@ -276,7 +297,7 @@ describe('Materials API', () => {
                 Promise.resolve(materials[0])
             )
             const response = await request(app)
-                .post('/api/v1/materials')
+                .post(URL_BASE)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -299,7 +320,7 @@ describe('Materials API', () => {
             })
 
             const response = await request(app)
-                .post('/api/v1/materials')
+                .post(URL_BASE)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -324,7 +345,7 @@ describe('Materials API', () => {
             })
 
             const response = await request(app)
-                .post('/api/v1/materials')
+                .post(URL_BASE)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -344,7 +365,7 @@ describe('Materials API', () => {
 
         it('Should return unauthenticated error', async () => {
             const response = await request(app)
-                .post('/api/v1/materials')
+                .post(URL_BASE)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
                 .field('price', 12)
@@ -366,23 +387,6 @@ describe('Materials API', () => {
         beforeAll(() => {
             createMaterialMock = jest.spyOn(Material.prototype, 'save')
             findByIdMaterialMock = jest.spyOn(Material, 'findById')
-
-            const mockMulter = {
-                memoryStorage: jest.fn(() => ({
-                    single: jest.fn(
-                        (fieldName: string) =>
-                            (req: any, res: any, next: any) => {
-                                req.file = {
-                                    originalname: 'mockedFile.txt',
-                                    mimetype: 'text/plain',
-                                    buffer: Buffer.from('Mocked file content'),
-                                }
-                                next()
-                            }
-                    ),
-                })),
-            }
-
             jest.mock('multer', () => mockMulter)
         })
 
@@ -396,7 +400,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1 actualizado')
                 .field('description', 'Descripción 1')
@@ -423,7 +427,7 @@ describe('Materials API', () => {
             })
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -450,7 +454,7 @@ describe('Materials API', () => {
             })
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(400)
@@ -467,7 +471,7 @@ describe('Materials API', () => {
             })
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -481,7 +485,7 @@ describe('Materials API', () => {
 
         it('Should return unauthenticated error', async () => {
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
                 .field('price', 12)
@@ -502,7 +506,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -547,7 +551,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .put(`/api/v1/materials/${materials[0]._id}`)
+                .put(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -580,16 +584,14 @@ describe('Materials API', () => {
             deleteMaterialMock.mockImplementation(async () => Promise.resolve())
 
             const response = await request(app)
-                .delete(`/api/v1/materials/${materials[0]._id}`)
+                .delete(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(204)
         })
 
         it('Should return unauthenticated error', async () => {
-            const response = await request(app).delete(
-                `/api/v1/materials/${materials[0]._id}`
-            )
+            const response = await request(app).delete(specificMaterialEndpoint)
 
             expect(response.status).toBe(401)
         })
@@ -602,7 +604,7 @@ describe('Materials API', () => {
             deleteMaterialMock.mockImplementation(async () => Promise.resolve())
 
             const response = await request(app)
-                .delete(`/api/v1/materials/${materials[0]._id}`)
+                .delete(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
 
             expect(response.status).toBe(403)
@@ -631,7 +633,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .delete(`/api/v1/materials/${materials[0]._id}`)
+                .delete(specificMaterialEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(500)
