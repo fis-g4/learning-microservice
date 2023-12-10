@@ -13,16 +13,18 @@ const storage = new Storage({
 const bucketName = 'classes-bucket';
 const bucket = storage.bucket(bucketName);
 
+const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime'];
+
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB
+        fileSize: 1024 * 1024 * 1024, // 1 GB
     },
     });
 
 function getFileNameFromUrl(url: string): string | null {
-    const match = url.match(/\/([^\/?#]+)[^\/]*$/);
-    return match ? match[1] : null;
+    const match = url.match(/\/([^\/?#]+)[^\/]*$/)
+    return match ? match[1] : null
 }
 
 
@@ -63,6 +65,15 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
             })
         }
 
+        // Verify file type
+        const contentType = req.file.mimetype;
+
+        if (!allowedMimeTypes.includes(contentType)) {
+            return res.status(400).json({
+                error: "Invalid file type. Only video files are allowed.",
+            });
+        }
+
         const newClass = Class.build({
             title,
             description,
@@ -84,7 +95,6 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
 
             //Error case
             blobStream.on('error', async (err) => {
-                console.error('Error al subir el archivo:', err);
                 await Class.deleteOne({ _id: savedClass._id });
                 res.status(500).json({ error: 'Error uploading file.' });
             });
@@ -99,11 +109,10 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
 
             blobStream.end(req.file.buffer);
         } catch (error) {
-            console.error('Error al guardar la clase en la base de datos:', error);
             res.status(500).json({ error: 'Error saving class.' });
         }
     } catch (error) {
-        console.error('Error en la solicitud:', error);
+        
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -117,6 +126,7 @@ router.put("/:id", upload.single('file'), async (req: Request, res: Response) =>
     if (!_class) {
         return res.status(404).json({ error: 'Class not found' })
     }
+
 
     const { 
         title,
@@ -133,10 +143,20 @@ router.put("/:id", upload.single('file'), async (req: Request, res: Response) =>
     // Option 1: Update file (and fields)
     if (req.file) {
         try{
+
             if(title) _class.title = title
             if(description) _class.description = description
             if(order) _class.order = order
 
+                // Verify file type
+            
+            const contentType = req.file.mimetype;
+
+            if (!allowedMimeTypes.includes(contentType)) {
+                return res.status(400).json({
+                    error: "Invalid file type. Only video files are allowed.",
+                });
+            }
             const savedClass = await _class.save()
             
             const newFileName = `${uuidv4()}-${req.file.originalname}`
@@ -149,7 +169,6 @@ router.put("/:id", upload.single('file'), async (req: Request, res: Response) =>
             });
 
             blobStream.on('error', (err) => {
-                console.error('Error al subir el nuevo archivo:', err)
                 return res.status(500).json({ error: 'Error uploading file.' })
             });
 
@@ -171,7 +190,6 @@ router.put("/:id", upload.single('file'), async (req: Request, res: Response) =>
             blobStream.end(req.file.buffer);
             }
             catch (error) {
-            console.error('Error al guardar la clase en la base de datos:', error);
             res.status(500).json({ error: 'Error saving class.' });
             }
     // Option 2: Update fields
@@ -200,7 +218,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
             }
             
         } catch (error) {
-            console.error('Error deleting file from bucket:', error);
+
             return res.status(500).json({ error: 'Error deleting file from bucket' });
         }
 
