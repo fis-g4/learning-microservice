@@ -3,7 +3,7 @@ import { Class } from '../db/models/class'
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { Storage } from '@google-cloud/storage';
-import mongoose from 'mongoose'
+
 
 const router = express.Router()
 const storage = new Storage({
@@ -70,7 +70,7 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
 
         if (!allowedMimeTypes.includes(contentType)) {
             return res.status(400).json({
-                error: "Invalid file type. Only video files are allowed.",
+                error: "Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.",
             });
         }
 
@@ -154,7 +154,7 @@ router.put("/:id", upload.single('file'), async (req: Request, res: Response) =>
 
             if (!allowedMimeTypes.includes(contentType)) {
                 return res.status(400).json({
-                    error: "Invalid file type. Only video files are allowed.",
+                    error: "Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.",
                 });
             }
             const savedClass = await _class.save()
