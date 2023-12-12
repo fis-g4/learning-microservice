@@ -6,8 +6,9 @@ interface IMaterial {
     title: string // Title of the material
     description: string // Description of the material
     price: number // Price of the material
-    author: mongoose.Types.ObjectId // ID of the user who uploaded the material
-    purchasers: mongoose.Types.ObjectId[] // Array of user IDs that have purchased the material
+    currency: 'USD' | 'EUR' // Currency of the price
+    author: string // username of the user who uploaded the material
+    purchasers: string[] // Array of usernames that have purchased the material
     file: string // ID of the file in the blob-storage database
     type: 'book' | 'article' | 'presentation' | 'exercises' // Type of the file
 }
@@ -16,8 +17,9 @@ interface MaterialDoc extends mongoose.Document {
     title: string
     description: string
     price: number
-    author: mongoose.Types.ObjectId
-    purchasers: mongoose.Types.ObjectId[]
+    currency: 'USD' | 'EUR'
+    author: string
+    purchasers: string[]
     file: string
     type: 'book' | 'article' | 'presentation' | 'exercises'
 }
@@ -43,16 +45,24 @@ const materialSchema = new Schema({
         type: Number,
         required: true,
         min: 0,
-        max: 1000000,
+        max: 100,
+    },
+    currency: {
+        type: String,
+        enum: {
+            values: ['USD', 'EUR'],
+            message: '{VALUE} is not supported',
+        },
+        required: true,
     },
     author: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         required: true,
     },
     purchasers: {
         type: [
             {
-                type: mongoose.Schema.Types.ObjectId,
+                type: String,
                 ref: 'User',
             },
         ],
@@ -99,4 +109,4 @@ const Material = mongoose.model<MaterialDoc, MaterialModelInterface>(
     materialSchema
 )
 
-export { Material }
+export { Material, MaterialDoc }

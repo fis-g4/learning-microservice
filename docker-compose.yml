@@ -62,6 +62,8 @@ services:
     #   - redis
     networks:
       - learning-microservice
+    env_file:
+      - server/.env.dev #TODO: Change
 
   nginx:
     restart: always
