@@ -41,7 +41,7 @@ router.get('/me', async (req: Request, res: Response) => {
         }
 
         await Material.find({ author: username }).then((materials) => {
-            res.status(200).json(materials.map((material) => material.toJSON()))
+            res.status(200).send(materials.map((material) => material.toJSON()))
         })
     } catch (error) {
         return res.status(500).send()
@@ -169,7 +169,6 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
                 .status(201)
                 .json({ message: 'Material created successfully' })
         })
-
         blobStream.end(req.file.buffer)
     } catch (error) {
         return res.status(500).send()
@@ -250,7 +249,6 @@ router.put(
                 })
 
                 blobStream.on('error', (err) => {
-                    console.error('Error al subir el nuevo archivo:', err)
                     return res.status(500).send()
                 })
 
@@ -323,7 +321,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         if (fileName !== undefined) {
             await bucket.file(fileName).delete()
         }
-        await material.deleteOne()
+        await Material.deleteOne({ _id: material._id })
         return res.status(204).send()
     } catch (error) {
         return res.status(500).send()

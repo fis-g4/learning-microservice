@@ -103,4 +103,4 @@ function getPayloadFromToken(req: Request): IUser {
     return payload.payload
 }
 
-export { IUser, generateToken, verifyToken, getPayloadFromToken }
+export { IUser, IPayload, generateToken, verifyToken, getPayloadFromToken }
