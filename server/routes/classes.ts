@@ -47,7 +47,7 @@ router.get('/:id',authUser, async (req: Request, res: Response) => {
 
 //TODO: Connect to course microservice in frontend
 
-router.post('/classes/course/{courseId}',authUser, upload.single('file'), async (req: Request, res: Response) => {
+router.post('/course/:courseId',authUser, upload.single('file'), async (req: Request, res: Response) => {
     try {
         //TODO: Get course from course microservice and add class to it
         const { title, description, order }: ClassInputs = req.body
