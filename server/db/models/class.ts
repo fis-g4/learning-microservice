@@ -60,4 +60,4 @@ const Class = mongoose.model<ClassDoc, ClassModelInterface>(
     'Class',
     classSchema)
 
-export { Class };
+export { Class, ClassDoc };
