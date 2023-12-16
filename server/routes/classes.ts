@@ -13,7 +13,6 @@ const storage = new Storage({
 const bucketName = 'classes-bucket'
 const bucket = storage.bucket(bucketName)
 
-const ERROR_LOGIN = 'Unauthenticated: You are not logged in'
 const ERROR_CLASS_NOT_FOUND = 'Class not found'
 const ERROR_SERVER = 'Internal Server Error'
 
@@ -48,8 +47,9 @@ router.get('/:id',authUser, async (req: Request, res: Response) => {
 
 //TODO: Connect to course microservice in frontend
 
-router.post('/',authUser, upload.single('file'), async (req: Request, res: Response) => {
+router.post('/classes/course/{courseId}',authUser, upload.single('file'), async (req: Request, res: Response) => {
     try {
+        //TODO: Get course from course microservice and add class to it
         const { title, description, order }: ClassInputs = req.body
 
         if (!title || !description || !order || !req.file) {
@@ -211,7 +211,7 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
             }
 
             await classData.deleteOne()
-            return res.status(200).json({ message: 'Class deleted successfully' })
+            return res.status(204).json({ message: 'Class deleted successfully' })
         }
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
     } catch (error) {
