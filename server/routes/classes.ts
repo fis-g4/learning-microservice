@@ -3,7 +3,7 @@ import { Class , ClassDoc} from '../db/models/class'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
-import { IUser, getPayloadFromToken } from '../utils/jwtUtils'
+import { authUser } from '../utils/auth/auth'
 
 const router = express.Router()
 const storage = new Storage({
@@ -12,6 +12,10 @@ const storage = new Storage({
 
 const bucketName = 'classes-bucket'
 const bucket = storage.bucket(bucketName)
+
+const ERROR_LOGIN = 'Unauthenticated: You are not logged in'
+const ERROR_CLASS_NOT_FOUND = 'Class not found'
+const ERROR_SERVER = 'Internal Server Error'
 
 const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime']
 
@@ -27,52 +31,25 @@ function getFileNameFromUrl(url: string): string | null {
     return match ? match[1] : null
 }
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id',authUser, async (req: Request, res: Response) => {
     try{
-        //Check if user is logged in
-        let decodedToken: IUser = getPayloadFromToken(req)
-        const username: string = decodedToken.username
-
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
-
         //TODO: Check if user is enrolled in the course
         const classData = await Class.findById(req.params.id)
         if (classData) {
             return res.status(200).json(classData)
+        }else{
+            return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
         }
-        return res.status(404).json({ error: 'Class not found' })
     }catch{
-        return res.status(500).json({ error: 'Internal Server Error' })
+        return res.status(500).json({ error: ERROR_SERVER })
     }
 
 })
 
-//Reminder
-
-/*
-
-this route lets user just create a new class, but it doesn't let him add it to a course
-
-this is responsible of another microservice
-
-*/
-
 //TODO: Connect to course microservice in frontend
 
-router.post('/', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/',authUser, upload.single('file'), async (req: Request, res: Response) => {
     try {
-        //Check if user is logged in
-        let decodedToken: IUser = getPayloadFromToken(req)
-        const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
         const { title, description, order }: ClassInputs = req.body
 
         if (!title || !description || !order || !req.file) {
@@ -97,54 +74,44 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
             file: 'dummy',
         })
 
-        try {
-            const savedClass = await newClass.save()
+        const savedClass = await newClass.save()
 
-            //Save blob to storage
-            const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
-            const blobStream = blob.createWriteStream({
-                metadata: {
-                    contentType: req.file.mimetype,
-                },
-            })
+        //Save blob to storage
+        const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        const blobStream = blob.createWriteStream({
+            metadata: {
+                contentType: req.file.mimetype,
+            },
+        })
 
-            //Error case
-            blobStream.on('error', async (err) => {
-                await Class.deleteOne({ _id: savedClass._id })
-                res.status(500).json({ error: 'Error uploading file.' })
-            })
+        //Error case
+        blobStream.on('error', async (err) => {
+            await Class.deleteOne({ _id: savedClass._id })
+            res.status(500).json({ error: 'Error uploading file.' })
+        })
 
-            //Case success
-            blobStream.on('finish', async () => {
-                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
-                savedClass.file = publicUrl
-                const updatedClass = await savedClass.save()
-                res.status(201).json(updatedClass)
-            })
+        //Case success
+        blobStream.on('finish', async () => {
+            const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+            savedClass.file = publicUrl
+            const updatedClass = await savedClass.save()
+            res.status(201).json(updatedClass)
+        })
 
-            blobStream.end(req.file.buffer)
-        } catch (error) {
-            res.status(500).json({ error: 'Error saving class.' })
-        }
+        blobStream.end(req.file.buffer)
+
     } catch (error) {
-        res.status(500).json({ error: 'Internal Server Error' })
+        res.status(500).json({ error: ERROR_SERVER })
     }
 })
 
-router.put('/:id',upload.single('file'),async (req: Request, res: Response) => {
+router.put('/:id',authUser,upload.single('file'),async (req: Request, res: Response) => {
         //TODO: Check if user is the author of the class
         try {
-            let decodedToken: IUser = getPayloadFromToken(req)
-            const username: string = decodedToken.username
-            if (!username) {
-                return res
-                    .status(401)
-                    .json({ error: 'Unauthenticated: You are not logged in' })
-            }
             const _class = await Class.findById(req.params.id)
 
             if (!_class) {
-                return res.status(404).json({ error: 'Class not found' })
+                return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
             }
 
             const { title, description, order }: ClassInputs = req.body
@@ -167,7 +134,7 @@ router.put('/:id',upload.single('file'),async (req: Request, res: Response) => {
 
                 if (!allowedMimeTypes.includes(contentType)) {
                     return res.status(400).json({
-                        error: 'Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.',
+                        error: 'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.',
                     })
                 }
                 let updatedClass: ClassDoc
@@ -219,21 +186,14 @@ router.put('/:id',upload.single('file'),async (req: Request, res: Response) => {
                 return res.status(200).json(savedClass)
             }
         }catch{
-            return res.status(500).json({ error: 'Internal Server Error' })
+            return res.status(500).json({ error: ERROR_SERVER })
         }
     }
 )
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id',authUser, async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
-        const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
         const classData = await Class.findById(req.params.id)
         if (classData) {
             const fileUrl = classData.file
@@ -253,7 +213,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
             await classData.deleteOne()
             return res.status(200).json({ message: 'Class deleted successfully' })
         }
-        return res.status(404).json({ error: 'Class not found' })
+        return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
     } catch (error) {
         return res.status(500).send()
     }
