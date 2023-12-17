@@ -21,7 +21,8 @@ const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime']
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 1024 * 1024 * 1024, // 1 GB
+        fileSize: 1024 * 1024 * 5, // 1 GB
+        //fileSize: 1024 * 1024 * 1024, // 1 GB
     },
 })
 
@@ -87,7 +88,7 @@ router.post('/course/:courseId',authUser, upload.single('file'), async (req: Req
         //Error case
         blobStream.on('error', async (err) => {
             await Class.deleteOne({ _id: savedClass._id })
-            res.status(500).json({ error: 'Error uploading file.' })
+            return res.status(500).send()
         })
 
         //Case success
@@ -211,7 +212,7 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
             }
 
             await classData.deleteOne()
-            return res.status(204).json({ message: 'Class deleted successfully' })
+            return res.status(204).send()
         }
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
     } catch (error) {
