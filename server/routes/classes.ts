@@ -21,8 +21,7 @@ const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime']
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 1024 * 1024 * 5, // 1 GB
-        //fileSize: 1024 * 1024 * 1024, // 1 GB
+        fileSize: 1024 * 1024 * 1024, // 1 GB
     },
 })
 
