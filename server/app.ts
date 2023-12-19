@@ -49,6 +49,16 @@ app.use((err: any, req: any, res: any, next: any) => {
     }
 })
 
+
+
 app.use(API_VERSION + '/classes', classes)
+
+app.use((err: any, req: any, res: any, next: any) => {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).send({
+            error: 'Video file ocuppied more than 1GB',
+        })
+    }
+})
 
 module.exports = app
