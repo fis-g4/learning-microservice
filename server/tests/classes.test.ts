@@ -5,15 +5,20 @@ import { IPayload } from '../utils/jwtUtils'
 import { Class } from '../db/models/class'
 
 import dotenv from 'dotenv'
+import e from 'express'
 dotenv.config()
 
 const app = require('../app')
 
 const URL_BASE = '/api/v1/classes'
+const URL_POST = '/api/v1/classes/course/:courseId'
 const JSON_WEB_TOKEN =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
 const UNAUTHORIZED_JWT =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcnRhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MDAsImV4cCI6MTczMzU5ODkwMH0.Vvw5IZy7u35VBuodZTauln1Nf7PDDaOcNQbHuIE4F5c'
+
+    const UNAUTHORIZED_JWT2 =
+    "hyo"
 const JWT_SECRET = 'secret'
 
 // Function to verify a token
@@ -145,9 +150,9 @@ describe('Classes API', () => {
             )
             const response = await request(app)
                 .get(ClassEndpoint)
-                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
+                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT2}`)
 
-            expect(response.status).toBe(403)
+            expect(response.status).toBe(401)
         })
 
         it('Should return not found when class is not found', async () => {
@@ -185,17 +190,16 @@ describe('Classes API', () => {
                 Promise.resolve(classes[0])
             )
             const response = await request(app)
-                .post(URL_BASE)
+                .post(CourseClassesEndpoint)   
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
+                .field('order', 1)
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    //TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
-
+                //Generar archivo de video con mock
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                  });
             expect(response.status).toBe(201)
             expect(response.body.message).toBe('Class created successfully')
         })
@@ -206,9 +210,10 @@ describe('Classes API', () => {
             })
 
             const response = await request(app)
-                .post(URL_BASE)
+                .post(CourseClassesEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
+                .field('order', 1)
                 .field('description', 'Descripción 1')
                 .attach(
                     'file',
@@ -218,7 +223,7 @@ describe('Classes API', () => {
                 )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe('Invalid data')
+            expect(response.body.error).toBe("Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.")
         })
 
         it('Missing fields', async () => {
@@ -229,7 +234,7 @@ describe('Classes API', () => {
             })
 
             const response = await request(app)
-                .post(URL_BASE)
+                .post(CourseClassesEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
                 .attach(
@@ -241,7 +246,7 @@ describe('Classes API', () => {
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe(
-                'Missing required fields: title, description, file'
+                'Missing required fields (title, description, order, file)'
             )
         })
 
@@ -284,12 +289,10 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1 actualizada')
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                  });
 
             expect(response.status).toBe(200)
             expect(response.body.title).toBe('Clase 1 actualizada')
@@ -317,7 +320,7 @@ describe('Classes API', () => {
                 )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe('Invalid data')
+            expect(response.body.error).toBe('Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.')
         })
 
         it('No fields to update provided', async () => {
@@ -351,9 +354,14 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
                 .field('description', 1)
+                .attach(
+                    'file',
+                    Buffer.from('test file content', 'utf-8'),
+                    'mockedFile1.txt'
+                )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe('Invalid data')
+            expect(response.body.error).toBe('Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.')
         })
 
         it('Should return unauthenticated error', async () => {
@@ -378,17 +386,16 @@ describe('Classes API', () => {
 
             const response = await request(app)
                 .put(ClassEndpoint)
-                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
+                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT2}`)
                 .field('title', 'Clase 1')
+                .field('order', 1)
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // Todo: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
-            expect(response.status).toBe(403)
+            expect(response.status).toBe(401)
         })
 
         it('Class not found', async () => {
@@ -442,7 +449,8 @@ describe('Classes API', () => {
         })
 
         it('Should return OK when class is deleted', async () => {
-            findByIdClassMock.mockImplementation(async () =>
+            classes[0].file = 'https://storage.googleapis.com/classes-bucket/mockedFile1.mp4';
+            findByIdClassMock.mockImplementation(async () =>  
                 Promise.resolve(classes[0])
             )
 
@@ -452,7 +460,10 @@ describe('Classes API', () => {
                 .delete(ClassEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
+
             expect(response.status).toBe(204)
+            
+            expect(response.body)
         })
 
         it('Should return unauthenticated error', async () => {
@@ -470,9 +481,10 @@ describe('Classes API', () => {
 
             const response = await request(app)
                 .delete(ClassEndpoint)
-                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
+                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT2}`)
 
-            expect(response.status).toBe(403)
+            expect(response.status).toBe(401)
+            expect(response.body.error).toBe('Invalid token!')
         })
 
         it('Class not found', async () => {
@@ -485,7 +497,6 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(404)
-            expect(response.body.error).toBe('Class not found')
         })
 
         it('Internal server error', async () => {

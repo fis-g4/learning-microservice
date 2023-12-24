@@ -61,6 +61,7 @@ router.post('/course/:courseId',authUser, upload.single('file'), async (req: Req
         // Verify file type
         const contentType = req.file.mimetype
 
+        
         if (!allowedMimeTypes.includes(contentType)) {
             return res.status(400).json({
                 error: 'Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.',
@@ -94,8 +95,8 @@ router.post('/course/:courseId',authUser, upload.single('file'), async (req: Req
         blobStream.on('finish', async () => {
             const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
             savedClass.file = publicUrl
-            const updatedClass = await savedClass.save()
-            res.status(201).json(updatedClass)
+            await savedClass.save()
+            res.status(201).json({ message: 'Class created successfully' })
         })
 
         blobStream.end(req.file.buffer)
@@ -195,6 +196,7 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     try {
         const classData = await Class.findById(req.params.id)
+        console.log(classData)
         if (classData) {
             const fileUrl = classData.file
             const fileName = fileUrl.split('/').pop()
@@ -210,11 +212,12 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
                     .json({ error: 'Error deleting file from bucket' })
             }
 
-            await classData.deleteOne()
+            await Class.deleteOne({ _id: classData.id })
             return res.status(204).send()
         }
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
     } catch (error) {
+        console.log("se mete aqui en el general")
         return res.status(500).send()
     }
 })
