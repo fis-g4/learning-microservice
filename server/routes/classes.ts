@@ -196,7 +196,6 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     try {
         const classData = await Class.findById(req.params.id)
-        console.log(classData)
         if (classData) {
             const fileUrl = classData.file
             const fileName = fileUrl.split('/').pop()
@@ -217,7 +216,6 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
         }
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
     } catch (error) {
-        console.log("se mete aqui en el general")
         return res.status(500).send()
     }
 })
