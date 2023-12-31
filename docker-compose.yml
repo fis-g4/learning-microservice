@@ -26,7 +26,7 @@ services:
     volumes:
       - db:/data/db
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
 
   server:
     restart: always
@@ -61,7 +61,7 @@ services:
     # links:
     #   - redis
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
     env_file:
       - server/.env.dev #TODO: Change
 
@@ -81,7 +81,7 @@ services:
       - server
       - mongo_db
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
 
 # volumes:
 #   static:
@@ -96,9 +96,5 @@ volumes:
   #   name: flatter-redis-data
 
 networks:
-  learning-microservice:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.5.0.0/16
+  communication-microservice_communication-network:
+    external: true

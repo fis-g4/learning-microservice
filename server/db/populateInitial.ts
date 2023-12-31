@@ -114,7 +114,7 @@ function populateClass() {
 }
 
 async function populateDB() {
-    console.log('Populating DB...')
+    console.info('Populating DB...')
 
     if (process.env.NODE_ENV !== 'production') {
         User.collection.countDocuments().then((count) => {
@@ -134,7 +134,7 @@ async function populateDB() {
         })
     }
 
-    console.log('Populated!')
+    console.info('Database Populated!')
 }
 
 export default populateDB

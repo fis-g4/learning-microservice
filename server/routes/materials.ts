@@ -6,6 +6,7 @@ import { Material, MaterialDoc } from '../db/models/material'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
+import { sendMessage } from '../rabbitmq/operations'
 
 const router = express.Router()
 
@@ -66,6 +67,8 @@ router.get('/:id', async (req: Request, res: Response) => {
             material.price === 0 ||
             material.purchasers.includes(username)
         ) {
+            // TODO: CACHE
+
             return res.status(200).json(material.toJSON())
         }
         return res.status(403).json({
@@ -174,6 +177,40 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         return res.status(500).send()
     }
 })
+
+router.post(
+    '/:id/course/:courseId/associate',
+    async (req: Request, res: Response) => {
+        const data = {
+            courseId: req.params.courseId,
+            classId: req.params.id,
+        }
+        sendMessage(
+            'courses-microservice',
+            'notificationAssociateMaterial',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
+        return res.status(204).send()
+    }
+)
+
+router.post(
+    '/:id/course/:courseId/disassociate',
+    async (req: Request, res: Response) => {
+        const data = {
+            courseId: req.params.courseId,
+            classId: req.params.id,
+        }
+        sendMessage(
+            'courses-microservice',
+            'notificationDisassociateMaterial',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
+        return res.status(204).send()
+    }
+)
 
 // ------------------------ PUT ROUTES ------------------------
 
@@ -322,6 +359,15 @@ router.delete('/:id', async (req: Request, res: Response) => {
             await bucket.file(fileName).delete()
         }
         await Material.deleteOne({ _id: material._id })
+        const data = {
+            classId: req.params.id,
+        }
+        sendMessage(
+            'courses-microservice',
+            'notificationNewClass',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
         return res.status(204).send()
     } catch (error) {
         return res.status(500).send()
