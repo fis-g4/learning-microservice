@@ -1,5 +1,7 @@
 import amqplib, { Channel, Connection } from 'amqplib'
 import axios from 'axios'
+import { Material } from '../db/models/material'
+import { Class } from '../db/models/class'
 
 let channel: Channel, connection: Connection
 
@@ -47,12 +49,48 @@ async function handleMessages(message: string) {
     const jsonMessage = JSON.parse(message)
     const operationId = jsonMessage.operationId
     if (operationId === 'requestAppClassesAndMaterials') {
+        const courseId = jsonMessage.courseId
+        const classesIds = jsonMessage.classesIds
+        const materialIds = jsonMessage.materialIds
+
+        const classes = await Class.findAll({
+            where: {
+                id: classesIds,
+            },
+        })
+
+        const materials = await Material.findAll({
+            where: {
+                id: materialIds,
+            },
+        })
+
+        const data = {
+            courseId,
+            classes,
+            materials,
+        }
+
         sendMessage(
             'courses-microservice',
             'responseAppClassesAndMaterials',
             process.env.API_KEY ?? '',
-            'Response from learning microservice' //TODO: get data from database
+            JSON.stringify(data)
         )
+    } else if (operationId === 'publishNewAccess') {
+        const username = jsonMessage.username
+        const materialId = jsonMessage.materialId
+
+        const material = await Material.findByPk(materialId)
+        if (material) {
+            const purchasers = material.purchasers
+            purchasers.push(username)
+            await material.update({ purchasers })
+        }
+    } else if (operationId === 'responseMaterialReviews') {
+        const materialId = jsonMessage.materialId
+        const review = jsonMessage.review
+        // TODO: CACHE
     }
 }
 
