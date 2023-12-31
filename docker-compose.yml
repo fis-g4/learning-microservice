@@ -2,17 +2,17 @@ version: '3'
 
 services:
 
-  # redis:
-  #   restart: always
-  #   container_name: flatter-redis
-  #   image: redis:alpine
-  #   command: redis-server --appendonly yes
-  #   volumes:
-  #     - redis-data:/data
-  #   expose:
-  #     - 6379
-  #   networks:
-  #     - learning-microservice
+  redis:
+    restart: always
+    container_name: redis
+    image: redis:alpine
+    command: redis-server --save 20 1 --loglevel warning --requirepass "password"
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - communication-microservice_communication-network
 
   mongo_db:
     image: mongo:6.0
@@ -26,7 +26,7 @@ services:
     volumes:
       - db:/data/db
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
 
   server:
     restart: always
@@ -58,10 +58,11 @@ services:
       - 8000:8000
     depends_on:
       - mongo_db
-    # links:
-    #   - redis
+      - redis
+    links:
+      - redis
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
     env_file:
       - server/.env.dev #TODO: Change
 
@@ -81,7 +82,7 @@ services:
       - server
       - mongo_db
     networks:
-      - learning-microservice
+      - communication-microservice_communication-network
 
 # volumes:
 #   static:
@@ -92,13 +93,9 @@ services:
 volumes:
   db:
     name: learning-microservice-db
-  # redis-data:
-  #   name: flatter-redis-data
+  redis-data:
+    name: learning-microservice-redis-data
 
 networks:
-  learning-microservice:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.5.0.0/16
+  communication-microservice_communication-network:
+    external: true
