@@ -103,7 +103,7 @@ router.post(
                     courseId: req.params.courseId,
                     classId: updatedClass._id,
                 }
-                sendMessage(
+                await sendMessage(
                     'courses-microservice',
                     'notificationNewClass',
                     process.env.API_KEY ?? '',
@@ -231,7 +231,7 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
             const data = {
                 classId: req.params.id,
             }
-            sendMessage(
+            await sendMessage(
                 'courses-microservice',
                 'notificationDeleteClass',
                 process.env.API_KEY ?? '',

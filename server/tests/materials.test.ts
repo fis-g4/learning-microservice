@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 
 import { IPayload } from '../utils/jwtUtils'
 import { Material } from '../db/models/material'
+import redisClient from '../db/redis'
 
 import dotenv from 'dotenv'
 dotenv.config()
@@ -122,6 +123,34 @@ const mockMulter = {
     })),
 }
 
+// Redis
+
+jest.mock('redis', () => {
+    return {
+        createClient: jest.fn(() => ({
+            connect: jest.fn(),
+            disconnect: jest.fn(),
+            get: jest.fn(),
+            exists: jest.fn(),
+            on: jest.fn((event: string, callback: Function) => {
+                if (event === 'error') {
+                    return
+                } else if (event === 'ready') {
+                    return callback()
+                }
+            }),
+        })),
+    }
+})
+
+// Send message function
+
+jest.mock('../rabbitmq/operations', () => {
+    return {
+        sendMessage: jest.fn(),
+    }
+})
+
 // Materials API tests
 describe('Materials API', () => {
     describe('GET /materials/:me', () => {
@@ -172,7 +201,30 @@ describe('Materials API', () => {
             findMaterialByIdMock = jest.spyOn(Material, 'findById')
         })
 
-        it('Should return OK when material is found', async () => {
+        it('Should return OK when material is found and its review is in cache database', async () => {
+            jest.spyOn(redisClient, 'exists').mockImplementation(async () =>
+                Promise.resolve(0)
+            )
+
+            findMaterialByIdMock.mockImplementation(async () =>
+                Promise.resolve(materials[0])
+            )
+            const response = await request(app)
+                .get(specificMaterialEndpoint)
+                .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
+
+            expect(response.status).toBe(200)
+            expect(response.body.title).toBe(materials[0].title)
+        })
+
+        it('Should return OK when material is found and its review is not in cache database', async () => {
+            jest.spyOn(redisClient, 'exists').mockImplementation(async () =>
+                Promise.resolve(1)
+            )
+            jest.spyOn(redisClient, 'get').mockImplementation(async () =>
+                Promise.resolve(5)
+            )
+
             findMaterialByIdMock.mockImplementation(async () =>
                 Promise.resolve(materials[0])
             )

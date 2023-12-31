@@ -68,7 +68,7 @@ async function handleMessages(message: string) {
             materials,
         }
 
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'responseAppClassesAndMaterials',
             process.env.API_KEY ?? '',

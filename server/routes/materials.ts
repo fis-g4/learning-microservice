@@ -79,7 +79,7 @@ router.get('/:id', async (req: Request, res: Response) => {
                     const message = JSON.stringify({
                         materialId,
                     })
-                    sendMessage(
+                    await sendMessage(
                         'reviews-microservice',
                         'requestMaterialReviews',
                         process.env.API_KEY ?? '',
@@ -206,7 +206,7 @@ router.post(
             courseId: req.params.courseId,
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationAssociateMaterial',
             process.env.API_KEY ?? '',
@@ -223,7 +223,7 @@ router.post(
             courseId: req.params.courseId,
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationDisassociateMaterial',
             process.env.API_KEY ?? '',
@@ -383,7 +383,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         const data = {
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationNewClass',
             process.env.API_KEY ?? '',
