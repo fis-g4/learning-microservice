@@ -48,21 +48,16 @@ async function receiveMessages(queue: string) {
 async function handleMessages(message: string) {
     const jsonMessage = JSON.parse(message)
     const operationId = jsonMessage.operationId
+    const messageContent = jsonMessage.message
     if (operationId === 'requestAppClassesAndMaterials') {
-        const courseId = jsonMessage.courseId
-        const classesIds = jsonMessage.classesIds
-        const materialIds = jsonMessage.materialIds
+        const courseId = messageContent.courseId
+        const classIds = messageContent.classIds
+        const materialIds = messageContent.materialIds
 
-        const classes = await Class.findAll({
-            where: {
-                id: classesIds,
-            },
-        })
+        const classes = await Class.find({ _id: { $in: classIds } })
 
-        const materials = await Material.findAll({
-            where: {
-                id: materialIds,
-            },
+        const materials = await Material.find({
+            _id: { $in: materialIds },
         })
 
         const data = {
@@ -78,18 +73,17 @@ async function handleMessages(message: string) {
             JSON.stringify(data)
         )
     } else if (operationId === 'publishNewAccess') {
-        const username = jsonMessage.username
-        const materialId = jsonMessage.materialId
+        const username = messageContent.username
+        const materialId = messageContent.materialId
 
-        const material = await Material.findByPk(materialId)
+        const material = await Material.findById(materialId)
         if (material) {
-            const purchasers = material.purchasers
-            purchasers.push(username)
-            await material.update({ purchasers })
+            material.purchasers.push(username)
+            await material.save()
         }
     } else if (operationId === 'responseMaterialReviews') {
-        const materialId = jsonMessage.materialId
-        const review = jsonMessage.review
+        const materialId = messageContent.materialId
+        const review = messageContent.review
         // TODO: CACHE
     }
 }
