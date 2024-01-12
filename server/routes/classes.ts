@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express'
-import { Class , ClassDoc} from '../db/models/class'
+import { Class, ClassDoc } from '../db/models/class'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
+import { sendMessage } from '../rabbitmq/operations'
 
 const router = express.Router()
 const storage = new Storage({
@@ -30,82 +31,99 @@ function getFileNameFromUrl(url: string): string | null {
     return match ? match[1] : null
 }
 
-router.get('/:id',authUser, async (req: Request, res: Response) => {
-    try{
+router.get('/:id', authUser, async (req: Request, res: Response) => {
+    try {
         //TODO: Check if user is enrolled in the course
         const classData = await Class.findById(req.params.id)
         if (classData) {
             return res.status(200).json(classData)
-        }else{
+        } else {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
         }
-    }catch{
+    } catch {
         return res.status(500).json({ error: ERROR_SERVER })
     }
-
 })
 
 //TODO: Connect to course microservice in frontend
 
-router.post('/course/:courseId',authUser, upload.single('file'), async (req: Request, res: Response) => {
-    try {
-        //TODO: Get course from course microservice and add class to it
-        const { title, description, order }: ClassInputs = req.body
+router.post(
+    '/course/:courseId',
+    authUser,
+    upload.single('file'),
+    async (req: Request, res: Response) => {
+        try {
+            //TODO: Get course from course microservice and add class to it
+            const { title, description, order }: ClassInputs = req.body
 
-        if (!title || !description || !order || !req.file) {
-            return res.status(400).json({
-                error: 'Missing required fields (title, description, order, file)',
+            if (!title || !description || !order || !req.file) {
+                return res.status(400).json({
+                    error: 'Missing required fields (title, description, order, file)',
+                })
+            }
+
+            // Verify file type
+            const contentType = req.file.mimetype
+
+            if (!allowedMimeTypes.includes(contentType)) {
+                return res.status(400).json({
+                    error: 'Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.',
+                })
+            }
+
+            const newClass = Class.build({
+                title,
+                description,
+                order,
+                file: 'dummy',
             })
-        }
 
-        // Verify file type
-        const contentType = req.file.mimetype
+            const savedClass = await newClass.save()
 
-        if (!allowedMimeTypes.includes(contentType)) {
-            return res.status(400).json({
-                error: 'Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.',
+            //Save blob to storage
+            const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+            const blobStream = blob.createWriteStream({
+                metadata: {
+                    contentType: req.file.mimetype,
+                },
             })
+
+            //Error case
+            blobStream.on('error', async (err) => {
+                await Class.deleteOne({ _id: savedClass._id })
+                return res.status(500).send()
+            })
+
+            //Case success
+            blobStream.on('finish', async () => {
+                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                savedClass.file = publicUrl
+                const updatedClass = await savedClass.save()
+                const data = {
+                    courseId: req.params.courseId,
+                    classId: updatedClass._id,
+                }
+                sendMessage(
+                    'courses-microservice',
+                    'notificationNewClass',
+                    process.env.API_KEY ?? '',
+                    JSON.stringify(data)
+                )
+                res.status(201).json(updatedClass)
+            })
+
+            blobStream.end(req.file.buffer)
+        } catch (error) {
+            res.status(500).json({ error: ERROR_SERVER })
         }
-
-        const newClass = Class.build({
-            title,
-            description,
-            order,
-            file: 'dummy',
-        })
-
-        const savedClass = await newClass.save()
-
-        //Save blob to storage
-        const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
-        const blobStream = blob.createWriteStream({
-            metadata: {
-                contentType: req.file.mimetype,
-            },
-        })
-
-        //Error case
-        blobStream.on('error', async (err) => {
-            await Class.deleteOne({ _id: savedClass._id })
-            return res.status(500).send()
-        })
-
-        //Case success
-        blobStream.on('finish', async () => {
-            const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
-            savedClass.file = publicUrl
-            const updatedClass = await savedClass.save()
-            res.status(201).json(updatedClass)
-        })
-
-        blobStream.end(req.file.buffer)
-
-    } catch (error) {
-        res.status(500).json({ error: ERROR_SERVER })
     }
-})
+)
 
-router.put('/:id',authUser,upload.single('file'),async (req: Request, res: Response) => {
+router.put(
+    '/:id',
+    authUser,
+    upload.single('file'),
+    async (req: Request, res: Response) => {
         //TODO: Check if user is the author of the class
         try {
             const _class = await Class.findById(req.params.id)
@@ -146,7 +164,6 @@ router.put('/:id',authUser,upload.single('file'),async (req: Request, res: Respo
                         .json({ error: err.message ?? 'Invalid data' })
                 }
 
-
                 const newFileName = `${uuidv4()}-${req.file.originalname}`
                 const blob = bucket.file(newFileName)
 
@@ -185,13 +202,13 @@ router.put('/:id',authUser,upload.single('file'),async (req: Request, res: Respo
                 const savedClass = await _class.save()
                 return res.status(200).json(savedClass)
             }
-        }catch{
+        } catch {
             return res.status(500).json({ error: ERROR_SERVER })
         }
     }
 )
 
-router.delete('/:id',authUser, async (req: Request, res: Response) => {
+router.delete('/:id', authUser, async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     try {
         const classData = await Class.findById(req.params.id)
@@ -211,6 +228,15 @@ router.delete('/:id',authUser, async (req: Request, res: Response) => {
             }
 
             await classData.deleteOne()
+            const data = {
+                classId: req.params.id,
+            }
+            sendMessage(
+                'courses-microservice',
+                'notificationDeleteClass',
+                process.env.API_KEY ?? '',
+                JSON.stringify(data)
+            )
             return res.status(204).send()
         }
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
