@@ -1,4 +1,0 @@
-learning:
-  replicaCount: 1
-
-learningMongoUrl: mongodb://mongo/test  # Default value
