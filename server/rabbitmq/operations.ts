@@ -2,8 +2,10 @@ import amqplib, { Channel, Connection } from 'amqplib'
 import axios from 'axios'
 import { Material } from '../db/models/material'
 import { Class } from '../db/models/class'
+import redisClient from '../db/redis'
 
 let channel: Channel, connection: Connection
+const FIVE_HOURS = 60 * 60 * 5
 
 async function sendMessage(
     dest: string,
@@ -13,7 +15,7 @@ async function sendMessage(
 ) {
     try {
         await axios.post(
-            `http://${process.env.COMMUNICATION_MICROSERVICE_HOST}:8080/api/v1/messages/${dest}`,
+            `http://${process.env.DOCKER_HOST}:8080/api/v1/messages/${dest}`,
             {
                 operationId,
                 message,
@@ -66,7 +68,7 @@ async function handleMessages(message: string) {
             materials,
         }
 
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'responseAppClassesAndMaterials',
             process.env.API_KEY ?? '',
@@ -78,13 +80,15 @@ async function handleMessages(message: string) {
 
         const material = await Material.findById(materialId)
         if (material) {
-            material.purchasers.push(username)
-            await material.save()
+            if (!material.purchasers.includes(username)) {
+                material.purchasers.push(username)
+                await material.save()
+            }
         }
     } else if (operationId === 'responseMaterialReviews') {
         const materialId = messageContent.materialId
         const review = messageContent.review
-        // TODO: CACHE
+        await redisClient.set(materialId, review, { EX: FIVE_HOURS })
     }
 }
 

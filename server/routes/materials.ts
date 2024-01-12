@@ -7,6 +7,7 @@ import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
 import { sendMessage } from '../rabbitmq/operations'
+import redisClient from '../db/redis'
 
 const router = express.Router()
 
@@ -58,7 +59,8 @@ router.get('/:id', async (req: Request, res: Response) => {
                 .status(401)
                 .json({ error: 'Unauthenticated: You are not logged in' })
         }
-        const material = await Material.findById(req.params.id)
+        const materialId = req.params.id
+        const material = await Material.findById(materialId)
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
         }
@@ -67,9 +69,28 @@ router.get('/:id', async (req: Request, res: Response) => {
             material.price === 0 ||
             material.purchasers.includes(username)
         ) {
-            // TODO: CACHE
+            let materialReview = null
+            await redisClient.exists(materialId).then(async (exists) => {
+                if (exists === 1) {
+                    await redisClient.get(materialId).then((reply) => {
+                        materialReview = reply
+                    })
+                } else {
+                    const message = JSON.stringify({
+                        materialId,
+                    })
+                    await sendMessage(
+                        'reviews-microservice',
+                        'requestMaterialReviews',
+                        process.env.API_KEY ?? '',
+                        message
+                    )
+                }
+            })
 
-            return res.status(200).json(material.toJSON())
+            const materialJSON: Record<string, any> = material.toJSON()
+            materialJSON['review'] = materialReview
+            return res.status(200).json(materialJSON)
         }
         return res.status(403).json({
             error: 'Unauthorized: You are not the author of this material or you have not purchased it',
@@ -185,7 +206,7 @@ router.post(
             courseId: req.params.courseId,
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationAssociateMaterial',
             process.env.API_KEY ?? '',
@@ -202,7 +223,7 @@ router.post(
             courseId: req.params.courseId,
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationDisassociateMaterial',
             process.env.API_KEY ?? '',
@@ -362,7 +383,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         const data = {
             classId: req.params.id,
         }
-        sendMessage(
+        await sendMessage(
             'courses-microservice',
             'notificationNewClass',
             process.env.API_KEY ?? '',
