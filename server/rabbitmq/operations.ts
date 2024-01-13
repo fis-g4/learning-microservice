@@ -15,7 +15,7 @@ async function sendMessage(
 ) {
     try {
         await axios.post(
-            `http://34.155.65.12/v1/messages/${dest}`, // TODO: CHANGE TO API_DOMAIN
+            `https://${process.env.API_DOMAIN}/v1/messages/${dest}`,
             {
                 operationId,
                 message,
