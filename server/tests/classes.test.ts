@@ -5,20 +5,16 @@ import { IPayload } from '../utils/jwtUtils'
 import { Class } from '../db/models/class'
 
 import dotenv from 'dotenv'
-import e from 'express'
+
 dotenv.config()
 
 const app = require('../app')
 
 const URL_BASE = '/api/v1/classes'
-const URL_POST = '/api/v1/classes/course/:courseId'
 const JSON_WEB_TOKEN =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
-const UNAUTHORIZED_JWT =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcnRhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MDAsImV4cCI6MTczMzU5ODkwMH0.Vvw5IZy7u35VBuodZTauln1Nf7PDDaOcNQbHuIE4F5c'
 
-    const UNAUTHORIZED_JWT2 =
-    "hyo"
+const UNAUTHORIZED_JWT2 = "hyo"
 const JWT_SECRET = 'secret'
 
 // Function to verify a token
@@ -195,7 +191,6 @@ describe('Classes API', () => {
                 .field('title', 'Clase 1')
                 .field('order', 1)
                 .field('description', 'Descripción 1')
-                //Generar archivo de video con mock
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
@@ -217,10 +212,9 @@ describe('Classes API', () => {
                 .field('description', 'Descripción 1')
                 .attach(
                     'file',
-                    // TODO: Change to real video file
                     Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                    'mockedFile.txt'
+                );
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe("Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.")
@@ -237,12 +231,10 @@ describe('Classes API', () => {
                 .post(CourseClassesEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe(
@@ -255,14 +247,30 @@ describe('Classes API', () => {
                 .post(URL_BASE)
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
             expect(response.status).toBe(401)
+        })
+
+        it('Should return internal server error', async () => {
+            createClassMock.mockImplementation(async () =>
+                Promise.reject('Internal server error')
+            )
+            const response = await request(app)
+                .post(CourseClassesEndpoint)
+                .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
+                .field('title', 'Clase 1')
+                .field('order', 1)
+                .field('description', 'Descripción 1')
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
+
+            expect(response.status).toBe(500)
         })
     })
 
@@ -314,9 +322,8 @@ describe('Classes API', () => {
                 .field('description', 1)
                 .attach(
                     'file',
-                    // TODO: Change to real video file
                     Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
+                    'mockedFile.txt'
                 )
 
             expect(response.status).toBe(400)
@@ -357,7 +364,7 @@ describe('Classes API', () => {
                 .attach(
                     'file',
                     Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
+                    'mockedFile.txt'
                 )
 
             expect(response.status).toBe(400)
@@ -369,12 +376,10 @@ describe('Classes API', () => {
                 .put(ClassEndpoint)
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
             expect(response.status).toBe(401)
         })
@@ -408,12 +413,10 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
             expect(response.status).toBe(404)
             expect(response.body.error).toBe('Class not found')
@@ -429,12 +432,10 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
-                .attach(
-                    'file',
-                    // TODO: Change to real video file
-                    Buffer.from('test file content', 'utf-8'),
-                    'mockedFile1.txt'
-                )
+                .attach('file', Buffer.from(''), {
+                    contentType: 'video/mp4',
+                    filename: 'mockedFile1.mp4',
+                });
 
             expect(response.status).toBe(500)
         })
