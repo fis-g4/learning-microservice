@@ -31,6 +31,12 @@ function getFileNameFromUrl(url: string): string | null {
     return match ? match[1] : null
 }
 
+router.get('/check', async (req: Request, res: Response) => {
+    return res
+        .status(200)
+        .json({ message: 'The classes service is working properly!' })
+})
+
 router.get('/', authUser, async (req: Request, res: Response) => {
     try {
         const classes = await Class.find()
@@ -38,7 +44,7 @@ router.get('/', authUser, async (req: Request, res: Response) => {
     } catch {
         return res.status(500).json({ error: ERROR_SERVER })
     }
-})
+
 
 router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {

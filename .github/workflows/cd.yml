@@ -1,0 +1,67 @@
+name: Deploy to GCE
+
+on:
+  push:
+    branches:
+      - "develop"
+
+env:
+  ENV_CONFIGURATION: ${{ secrets.ENV_CONFIGURATION }}
+  TERRAFORM_VARS: ${{ secrets.TERRAFORM_VARS }}
+  GCP_CREDENTIALS: ${{ secrets.ENCODED_GCP_CREDENTIALS }}
+
+jobs:
+  deploy-flatter-to-gce:
+    name: Lerning Microservice Deployment to GCE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.4.6
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+        
+      - name: Populate terraform variables
+        working-directory: ./terraform
+        run: |-
+              mkdir .ssh
+              ssh-keygen -f .ssh/learningMicroservice -t rsa -N ""
+              echo "$GCP_CREDENTIALS" | base64 --decode > GoogleCloudKey.json
+              echo "$TERRAFORM_VARS" | base64 --decode > terraform.tfvars
+              echo "$ENV_CONFIGURATION" | base64 --decode > .env.prod
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt
+        continue-on-error: true
+        working-directory: ./terraform
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ./terraform
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: ./terraform
+
+      - name: Terraform Destroy
+        id: destroy
+        run: terraform destroy -target=google_compute_instance.learning_service_instance -auto-approve -input=false -no-color
+        working-directory: ./terraform
+        continue-on-error: true
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -input=false -no-color
+        working-directory: ./terraform
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false -no-color
+        working-directory: ./terraform

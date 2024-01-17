@@ -10,7 +10,7 @@ dotenv.config()
 
 const app = require('../app')
 
-const URL_BASE = '/api/v1/materials'
+const URL_BASE = '/v1/materials'
 const JSON_WEB_TOKEN =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
 const UNAUTHORIZED_JWT =
@@ -222,7 +222,8 @@ describe('Materials API', () => {
                 Promise.resolve(1)
             )
             jest.spyOn(redisClient, 'get').mockImplementation(async () =>
-                Promise.resolve('5')
+
+                Promise.resolve("5")
             )
 
             findMaterialByIdMock.mockImplementation(async () =>
@@ -580,7 +581,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .put('/api/v1/materials/615e2f3b1d9f9b2b4c9e9b1a')
+                .put('/v1/materials/615e2f3b1d9f9b2b4c9e9b1a')
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Libro 1')
                 .field('description', 'Descripción 1')
@@ -668,7 +669,7 @@ describe('Materials API', () => {
             )
 
             const response = await request(app)
-                .delete('/api/v1/materials/615e2f3b1d9f9b2b4c9e9b1a')
+                .delete('/v1/materials/615e2f3b1d9f9b2b4c9e9b1a')
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
 
             expect(response.status).toBe(404)

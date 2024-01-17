@@ -31,6 +31,12 @@ function getFileNameFromUrl(url: string): string | null {
 
 // ------------------------ GET ROUTES ------------------------
 
+router.get('/check', async (req: Request, res: Response) => {
+    return res
+        .status(200)
+        .json({ message: 'The materials service is working properly!' })
+})
+
 router.get('/', async (req: Request, res: Response) => {
     try {
         let decodedToken: IUser = getPayloadFromToken(req)
