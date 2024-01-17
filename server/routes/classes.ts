@@ -37,6 +37,15 @@ router.get('/check', async (req: Request, res: Response) => {
         .json({ message: 'The classes service is working properly!' })
 })
 
+router.get('/', authUser, async (req: Request, res: Response) => {
+    try {
+        const classes = await Class.find()
+        return res.status(200).json(classes)
+    } catch {
+        return res.status(500).json({ error: ERROR_SERVER })
+    }
+})
+
 router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {
         //TODO: Check if user is enrolled in the course
