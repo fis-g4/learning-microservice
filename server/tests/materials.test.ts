@@ -222,7 +222,7 @@ describe('Materials API', () => {
                 Promise.resolve(1)
             )
             jest.spyOn(redisClient, 'get').mockImplementation(async () =>
-                Promise.resolve(5)
+                Promise.resolve('5')
             )
 
             findMaterialByIdMock.mockImplementation(async () =>

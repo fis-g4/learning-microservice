@@ -31,6 +31,15 @@ function getFileNameFromUrl(url: string): string | null {
     return match ? match[1] : null
 }
 
+router.get('/', authUser, async (req: Request, res: Response) => {
+    try {
+        const classes = await Class.find()
+        return res.status(200).json(classes)
+    } catch {
+        return res.status(500).json({ error: ERROR_SERVER })
+    }
+})
+
 router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {
         //TODO: Check if user is enrolled in the course

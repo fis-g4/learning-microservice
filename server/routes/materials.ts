@@ -31,6 +31,25 @@ function getFileNameFromUrl(url: string): string | null {
 
 // ------------------------ GET ROUTES ------------------------
 
+router.get('/', async (req: Request, res: Response) => {
+    try {
+        let decodedToken: IUser = getPayloadFromToken(req)
+        const username: string = decodedToken.username
+
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+
+        await Material.find({}).then((materials) => {
+            res.status(200).send(materials.map((material) => material.toJSON()))
+        })
+    } catch (error) {
+        return res.status(500).send()
+    }
+})
+
 router.get('/me', async (req: Request, res: Response) => {
     try {
         let decodedToken: IUser = getPayloadFromToken(req)
