@@ -6,12 +6,12 @@ import materials from './routes/materials'
 import { generateToken, verifyToken } from './utils/jwtUtils'
 
 const app: Express = express()
-const API_VERSION = '/api/v1'
+const API_VERSION = '/v1'
 
 app.use(express.json())
 app.use(cors())
 
-const URLS_ALLOWED_WITHOUT_TOKEN = ['/api/v1']
+const URLS_ALLOWED_WITHOUT_TOKEN = ['/v1/materials/check', '/v1/classes/check']
 
 app.use((req, res, next) => {
     let decodedToken = verifyToken(
