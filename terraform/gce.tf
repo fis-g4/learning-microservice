@@ -39,7 +39,7 @@ resource "google_compute_instance" "learning_service_instance" {
   cd /home/${var.user}
   git clone https://github.com/fis-g4/learning-microservice.git
   cd learning-microservice
-  git checkout task/034
+  git checkout develop
   git pull
   export ENV_CONFIGURATION="${file(".env.prod")}"
   export GOOGLE_APPLICATION_CREDENTIALS='${file("GoogleCloudKey.json")}'
