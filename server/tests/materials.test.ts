@@ -1,27 +1,53 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
+import 'dotenv/config'
+import { generateToken, getPayloadFromToken, IUser } from '../utils/jwtUtils'
 
-import { IPayload } from '../utils/jwtUtils'
 import { Material } from '../db/models/material'
 import redisClient from '../db/redis'
-
-import dotenv from 'dotenv'
-dotenv.config()
 
 const app = require('../app')
 
 const URL_BASE = '/v1/materials'
-const JSON_WEB_TOKEN =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
-const UNAUTHORIZED_JWT =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcnRhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MDAsImV4cCI6MTczMzU5ODkwMH0.Vvw5IZy7u35VBuodZTauln1Nf7PDDaOcNQbHuIE4F5c'
-const JWT_SECRET = 'secret'
 
-// Function to verify a token
-const verifyToken = (token: string) => {
-    return jwt.verify(token, JWT_SECRET, {
-        algorithms: ['HS256'],
-    }) as IPayload
+enum PlanType {
+    FREE = 'FREE',
+    PREMIUM = 'PREMIUM',
+    PRO = 'PRO',
+}
+
+enum UserRole {
+    USER = 'USER',
+    ADMIN = 'ADMIN',
+}
+
+const TEST_USER = {
+    firstName: 'Test',
+    lastName: 'User',
+    username: 'TEST_USER',
+    password: 'testpassword',
+    email: 'testemail@example.com',
+    plan: PlanType.FREE,
+    role: UserRole.USER,
+}
+
+const TEST_USER_2 = {
+    firstName: 'Test 2',
+    lastName: 'User 2',
+    username: 'TEST_USER_2',
+    password: 'testpassword2',
+    email: 'testemail2@example.com',
+    plan: PlanType.FREE,
+    role: UserRole.USER,
+}
+
+const TEST_USER_3 = {
+    firstName: 'Test 3',
+    lastName: 'User 3',
+    username: 'TEST_USER_3',
+    password: 'testpassword3',
+    email: 'testemail3@example.com',
+    plan: PlanType.FREE,
+    role: UserRole.USER,
 }
 
 // Materials to use in tests
@@ -31,10 +57,10 @@ const materials = [
         __v: 0,
         title: 'Libro 1',
         description: 'Descripción 1',
-        author: 'maria',
+        author: 'TEST_USER',
         price: 12,
         currency: 'EUR',
-        purchasers: ['pepe'],
+        purchasers: ['TEST_USER_2'],
         type: 'book',
         file: 'https://mockedFile.txt',
     }),
@@ -43,10 +69,10 @@ const materials = [
         __v: 0,
         title: 'Libro 2',
         description: 'Descripción 2',
-        author: 'pepe',
+        author: 'TEST_USER_2',
         price: 15,
         currency: 'EUR',
-        purchasers: ['maria'],
+        purchasers: ['TEST_USER'],
         type: 'book',
         file: 'https://file2.json',
     }),
@@ -55,7 +81,7 @@ const materials = [
         __v: 0,
         title: 'Libro 3',
         description: 'Descripción 3',
-        author: 'marta',
+        author: 'TEST_USER_3',
         price: 32,
         currency: 'USD',
         purchasers: [],
@@ -155,17 +181,20 @@ jest.mock('../rabbitmq/operations', () => {
 describe('Materials API', () => {
     describe('GET /materials/:me', () => {
         let findMaterialsByUsernameMock: jest.SpyInstance
-        const payload: IPayload = verifyToken(JSON_WEB_TOKEN)
-        const usernameFromToken = payload.payload.username
+        let JSON_WEB_TOKEN: string
+        let user: IUser
 
-        beforeAll(() => {
+        beforeAll(async () => {
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
+            user = await getPayloadFromToken(JSON_WEB_TOKEN)
+
             findMaterialsByUsernameMock = jest.spyOn(Material, 'find')
         })
 
         it('Should return OK when user is authenticated', async () => {
             findMaterialsByUsernameMock.mockImplementation(async () =>
                 Promise.resolve(
-                    materials.filter((m) => m.author === usernameFromToken)
+                    materials.filter((m) => m.author === user.username)
                 )
             )
             const response = await request(app)
@@ -196,9 +225,13 @@ describe('Materials API', () => {
 
     describe('GET /materials/:id', () => {
         let findMaterialByIdMock: jest.SpyInstance
+        let JSON_WEB_TOKEN: string
+        let UNAUTHORIZED_JWT: string
 
-        beforeAll(() => {
+        beforeAll(async () => {
             findMaterialByIdMock = jest.spyOn(Material, 'findById')
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
+            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
         it('Should return OK when material is found and its review is in cache database', async () => {
@@ -222,8 +255,7 @@ describe('Materials API', () => {
                 Promise.resolve(1)
             )
             jest.spyOn(redisClient, 'get').mockImplementation(async () =>
-
-                Promise.resolve("5")
+                Promise.resolve('5')
             )
 
             findMaterialByIdMock.mockImplementation(async () =>
@@ -279,9 +311,13 @@ describe('Materials API', () => {
 
     describe('GET /materials/:id/users', () => {
         let findMaterialByIdMock: jest.SpyInstance
+        let JSON_WEB_TOKEN: string
+        let UNAUTHORIZED_JWT: string
 
-        beforeAll(() => {
+        beforeAll(async () => {
             findMaterialByIdMock = jest.spyOn(Material, 'findById')
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
+            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
         it('Should return OK when material is found', async () => {
@@ -340,9 +376,11 @@ describe('Materials API', () => {
 
     describe('POST /materials', () => {
         let createMaterialMock: jest.SpyInstance
-        beforeAll(() => {
+        let JSON_WEB_TOKEN: string
+        beforeAll(async () => {
             createMaterialMock = jest.spyOn(Material.prototype, 'save')
             jest.mock('multer', () => mockMulter)
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
         })
 
         it('Should return OK when material is created', async () => {
@@ -437,10 +475,15 @@ describe('Materials API', () => {
     describe('PUT /materials/:id', () => {
         let createMaterialMock: jest.SpyInstance
         let findByIdMaterialMock: jest.SpyInstance
-        beforeAll(() => {
+        let JSON_WEB_TOKEN: string
+        let UNAUTHORIZED_JWT: string
+
+        beforeAll(async () => {
             createMaterialMock = jest.spyOn(Material.prototype, 'save')
             findByIdMaterialMock = jest.spyOn(Material, 'findById')
             jest.mock('multer', () => mockMulter)
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
+            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
         it('Shoud return OK when material is updated', async () => {
@@ -624,9 +667,14 @@ describe('Materials API', () => {
     describe('DELETE /materials/:id', () => {
         let findByIdMaterialMock: jest.SpyInstance
         let deleteMaterialMock: jest.SpyInstance
-        beforeAll(() => {
+        let JSON_WEB_TOKEN: string
+        let UNAUTHORIZED_JWT: string
+
+        beforeAll(async () => {
             findByIdMaterialMock = jest.spyOn(Material, 'findById')
             deleteMaterialMock = jest.spyOn(Material, 'deleteOne')
+            JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
+            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_2)) as string
         })
 
         it('Should return OK when material is deleted', async () => {

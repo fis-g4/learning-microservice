@@ -1,10 +1,8 @@
-import { Request, Response } from 'express'
-import jwt from 'jsonwebtoken'
+import { Request } from 'express'
 import { ObjectId } from 'mongoose'
-import { jwtErrors } from './errorMessages/jwt'
+import { GoogleAuth } from 'google-auth-library'
 
 const JWT_SECRET: string = process.env.JWT_SECRET ?? ''
-const JWT_EXPIRATION_TIME: string = process.env.JWT_EXPIRATION_TIME ?? ''
 
 enum PlanType {
     FREE = 'FREE',
@@ -40,67 +38,118 @@ if (JWT_SECRET === '') {
     process.exit(1)
 }
 
-function generateToken(payload: object, res: Response) {
-    let token = jwt.sign({ payload }, JWT_SECRET, {
-        algorithm: 'HS256',
-        expiresIn: JWT_EXPIRATION_TIME,
-    })
+const authCredentials = new GoogleAuth({
+    keyFilename: '../GoogleCloudKey.json',
+})
 
-    if (token === '') {
-        res.status(500).json({ error: jwtErrors.generatingTokenError })
-    } else {
-        return token
-    }
-}
-
-function verifyToken(
-    req: Request,
-    res: Response,
-    isAllowedUrl: boolean = false
-): IPayload | undefined {
-    let bearerHeader = req.headers['authorization']
-
-    if (typeof bearerHeader === 'undefined') {
-        if (!isAllowedUrl) {
-            res.status(401).json({ error: jwtErrors.tokenNeededError })
-        }
-        return undefined
-    } else {
-        let bearer: string[] = bearerHeader.split(' ')
-        let bearerToken: string = bearer[1]
-        let token: string = bearerToken
-
-        try {
-            let payload: IPayload = jwt.verify(token, JWT_SECRET, {
-                algorithms: ['HS256'],
-            }) as IPayload
-
-            return payload
-        } catch (err) {
-            if (err instanceof jwt.TokenExpiredError) {
-                res.status(401).json({ error: jwtErrors.tokenExpiredError })
-            } else if (err instanceof jwt.JsonWebTokenError) {
-                res.status(401).json({ error: jwtErrors.invalidTokenError })
-            } else {
-                res.status(500).json({ error: jwtErrors.verifyTokenError })
-            }
-            return undefined
-        }
-    }
-}
-
-function getPayloadFromToken(req: Request): IUser {
+function getTokenFromRequest(req: Request): string | undefined {
     let bearerHeader = req.headers['authorization'] as string
-
     let bearer: string[] = bearerHeader.split(' ')
     let bearerToken: string = bearer[1]
-    let token: string = bearerToken
 
-    let payload: IPayload = jwt.verify(token, JWT_SECRET, {
-        algorithms: ['HS256'],
-    }) as IPayload
-
-    return payload.payload
+    return bearerToken
 }
 
-export { IUser, IPayload, generateToken, verifyToken, getPayloadFromToken }
+function generateToken(user: IUser) {
+    return new Promise((resolve, reject) => {
+        authCredentials
+            .getIdTokenClient(process.env.GCF_GENERATE_TOKEN_ENDPOINT ?? '')
+            .then((client) => {
+                client
+                    .request({
+                        method: 'POST',
+                        url: process.env.GCF_GENERATE_TOKEN_ENDPOINT ?? '',
+                        data: {
+                            payload: {
+                                firstName: user.firstName,
+                                lastName: user.lastName,
+                                username: user.username,
+                                email: user.email,
+                                profilePicture: user.profilePicture,
+                                coinsAmount: user.coinsAmount,
+                                role: user.role,
+                                plan: user.plan,
+                            },
+                        },
+                    })
+                    .then((response) => {
+                        let data: any = response.data
+                        let token = data.data
+
+                        resolve(token)
+                    })
+                    .catch((err) => {
+                        reject(err)
+                    })
+            })
+    })
+}
+
+function verifyToken(url: string, token: string): Promise<IUser> {
+    return new Promise((resolve, reject) => {
+        authCredentials
+            .getIdTokenClient(process.env.GCF_VERIFY_TOKEN_ENDPOINT ?? '')
+            .then((client) => {
+                client
+                    .request({
+                        method: 'POST',
+                        url: process.env.GCF_VERIFY_TOKEN_ENDPOINT ?? '',
+                        data: {
+                            url: url,
+                            token: token,
+                        },
+                    })
+                    .then((response) => {
+                        let data: any = response.data
+                        let payload = data.data
+
+                        resolve(payload)
+                    })
+                    .catch((err) => {
+                        let statusCode = err.response.status
+                        let message = err.response.data.error
+
+                        reject({ statusCode, message })
+                    })
+            })
+    })
+}
+
+function getPayloadFromToken(token: string): Promise<IUser> {
+    return new Promise((resolve, reject) => {
+        authCredentials
+            .getIdTokenClient(
+                process.env.GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT ?? ''
+            )
+            .then((client) => {
+                client
+                    .request({
+                        method: 'POST',
+                        url:
+                            process.env.GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT ??
+                            '',
+                        data: {
+                            token: token,
+                        },
+                    })
+                    .then((response) => {
+                        let data: any = response.data
+                        let payload = data.data
+
+                        resolve(payload)
+                    })
+                    .catch((err) => {
+                        reject(err)
+                    })
+            })
+    })
+}
+
+export {
+    IUser,
+    IPayload,
+    generateToken,
+    verifyToken,
+    getPayloadFromToken,
+    getTokenFromRequest,
+}

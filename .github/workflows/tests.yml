@@ -11,7 +11,10 @@ on:
 
 env:
     JWT_SECRET: ${{secrets.JWT_SECRET}}
-    JWT_EXPIRATION_TIME: ${{secrets.JWT_EXPIRATION_TIME}}
+    GCF_GENERATE_TOKEN_ENDPOINT: ${{secrets.GCF_GENERATE_TOKEN_ENDPOINT}}
+    GCF_VERIFY_TOKEN_ENDPOINT: ${{secrets.GCF_VERIFY_TOKEN_ENDPOINT}}
+    GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT: ${{secrets.GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT}}
+
 jobs:
     build:
         runs-on: ubuntu-latest
@@ -31,6 +34,12 @@ jobs:
             - name: NPM clean install
               working-directory: ./server
               run: npm ci
+            - name: Decrypt GoogleCloudKey.gpg
+              env:
+                  GOOGLE_API_PW: ${{secrets.GCP_CREDENTIALS_PK}}
+              run: |
+                  gpg --quiet --batch --yes --decrypt --passphrase="$GOOGLE_API_PW" \
+                  --output $GITHUB_WORKSPACE/GoogleCloudKey.json GoogleCloudKey.gpg
             - name: NPM test
               working-directory: ./server
               run: npm test

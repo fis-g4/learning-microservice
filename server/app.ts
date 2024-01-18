@@ -14,22 +14,32 @@ app.use(cors())
 const URLS_ALLOWED_WITHOUT_TOKEN = ['/v1/materials/check', '/v1/classes/check']
 
 app.use((req, res, next) => {
-    let decodedToken = verifyToken(
-        req,
-        res,
-        URLS_ALLOWED_WITHOUT_TOKEN.includes(req.path)
-    )
+    let bearerHeader = req.headers['authorization'] as string
+    let bearerToken: string | undefined = undefined
 
-    if (decodedToken !== undefined) {
-        res.setHeader(
-            'Authorization',
-            `Bearer ${generateToken(decodedToken as object, res)}`
-        )
-    } else if (res.statusCode !== 200) {
-        return res
+    if (bearerHeader !== undefined) {
+        let bearer: string[] = bearerHeader.split(' ')
+        bearerToken = bearer[1]
     }
 
-    next()
+    verifyToken(req.url, bearerToken ?? '')
+        .then((payload) => {
+            if (payload !== undefined) {
+                generateToken(payload)
+                    .then((token) => {
+                        res.setHeader('Authorization', `Bearer ${token}`)
+                        next()
+                    })
+                    .catch((err) => {
+                        console.error(err)
+                    })
+            } else {
+                next()
+            }
+        })
+        .catch((err) => {
+            res.status(err.statusCode).json({ error: err.message })
+        })
 })
 
 app.get(API_VERSION, (req: Request, res: Response) => {
@@ -48,8 +58,6 @@ app.use((err: any, req: any, res: any, next: any) => {
         })
     }
 })
-
-
 
 app.use(API_VERSION + '/classes', classes)
 
