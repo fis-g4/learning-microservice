@@ -16,7 +16,7 @@ import redisClient from '../db/redis'
 const router = express.Router()
 
 const storage = new Storage({
-    keyFilename: './GoogleCloudKey.json',
+    keyFilename: '../GoogleCloudKey.json',
 })
 const bucketName = 'materials-bucket'
 const bucket = storage.bucket(bucketName)

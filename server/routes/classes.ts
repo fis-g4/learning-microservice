@@ -8,7 +8,7 @@ import { sendMessage } from '../rabbitmq/operations'
 
 const router = express.Router()
 const storage = new Storage({
-    keyFilename: './GoogleCloudKey.json',
+    keyFilename: '../GoogleCloudKey.json',
 })
 
 const bucketName = 'classes-bucket'
