@@ -1,5 +1,9 @@
 import express, { Request, Response } from 'express'
-import { IUser, getPayloadFromToken } from '../utils/jwtUtils'
+import {
+    IUser,
+    getPayloadFromToken,
+    getTokenFromRequest,
+} from '../utils/jwtUtils'
 
 import { Material, MaterialDoc } from '../db/models/material'
 
@@ -39,7 +43,9 @@ router.get('/check', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
 
         if (!username) {
@@ -58,7 +64,9 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.get('/me', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
 
         if (!username) {
@@ -77,7 +85,9 @@ router.get('/me', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
@@ -95,9 +105,9 @@ router.get('/:id', async (req: Request, res: Response) => {
             material.purchasers.includes(username)
         ) {
             let materialReview = null
-            await redisClient.exists(materialId).then(async (exists) => {
+            await redisClient.exists(materialId).then(async (exists: any) => {
                 if (exists === 1) {
-                    await redisClient.get(materialId).then((reply) => {
+                    await redisClient.get(materialId).then((reply: any) => {
                         materialReview = reply
                     })
                 } else {
@@ -127,7 +137,9 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.get('/:id/users', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
@@ -153,7 +165,9 @@ router.get('/:id/users', async (req: Request, res: Response) => {
 
 router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
 
         if (!username) {
@@ -265,7 +279,9 @@ router.put(
     upload.single('file'),
     async (req: Request, res: Response) => {
         try {
-            let decodedToken: IUser = getPayloadFromToken(req)
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
             const username: string = decodedToken.username
             if (!username) {
                 return res
@@ -380,7 +396,9 @@ router.put(
 
 router.delete('/:id', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
