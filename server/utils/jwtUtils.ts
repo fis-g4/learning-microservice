@@ -1,9 +1,8 @@
-import { Request, Response } from 'express'
+import { Request } from 'express'
 import { ObjectId } from 'mongoose'
 import { GoogleAuth } from 'google-auth-library'
 
 const JWT_SECRET: string = process.env.JWT_SECRET ?? ''
-const JWT_EXPIRATION_TIME: string = process.env.JWT_EXPIRATION_TIME ?? ''
 
 enum PlanType {
     FREE = 'FREE',
