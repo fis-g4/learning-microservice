@@ -39,7 +39,7 @@ jobs:
                   GOOGLE_API_PW: ${{secrets.GCP_CREDENTIALS_PK}}
               run: |
                   gpg --quiet --batch --yes --decrypt --passphrase="$GOOGLE_API_PW" \
-                  --output $GITHUB_WORKSPACE/GoogleCloudKey.json GoogleCloudKey.json.gpg
+                  --output $GITHUB_WORKSPACE/GoogleCloudKey.json GoogleCloudKey.gpg
             - name: NPM test
               working-directory: ./server
               run: npm test
