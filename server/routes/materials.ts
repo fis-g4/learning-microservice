@@ -13,6 +13,8 @@ import { Storage } from '@google-cloud/storage'
 import { sendMessage } from '../rabbitmq/operations'
 import redisClient from '../db/redis'
 
+import mongoose from 'mongoose'
+
 const router = express.Router()
 
 const storage = new Storage({
@@ -85,6 +87,11 @@ router.get('/me', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
     try {
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
@@ -137,6 +144,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.get('/:id/users', async (req: Request, res: Response) => {
     try {
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
@@ -279,6 +291,11 @@ router.put(
     upload.single('file'),
     async (req: Request, res: Response) => {
         try {
+            const idParameter = req.params.id
+            if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+                return res.status(400).json({ error: 'Invalid ID format' })
+            }
+
             let decodedToken: IUser = await getPayloadFromToken(
                 getTokenFromRequest(req) ?? ''
             )
@@ -396,6 +413,10 @@ router.put(
 
 router.delete('/:id', async (req: Request, res: Response) => {
     try {
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )

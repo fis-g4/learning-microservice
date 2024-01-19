@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
 import { sendMessage } from '../rabbitmq/operations'
+import mongoose from 'mongoose'
 
 const router = express.Router()
 const storage = new Storage({
@@ -48,6 +49,10 @@ router.get('/', authUser, async (req: Request, res: Response) => {
 
 router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
         //TODO: Check if user is enrolled in the course
         const classData = await Class.findById(req.params.id)
         if (classData) {
@@ -141,6 +146,10 @@ router.put(
     async (req: Request, res: Response) => {
         //TODO: Check if user is the author of the class
         try {
+            const idParameter = req.params.id
+            if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+                return res.status(400).json({ error: 'Invalid ID format' })
+            }
             const _class = await Class.findById(req.params.id)
 
             if (!_class) {
@@ -226,6 +235,11 @@ router.put(
 router.delete('/:id', authUser, async (req: Request, res: Response) => {
     //TODO: Check if user is the author of the class
     try {
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+
         const classData = await Class.findById(req.params.id)
         if (classData) {
             const fileUrl = classData.file
