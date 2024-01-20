@@ -15,7 +15,7 @@ async function sendMessage(
 ) {
     try {
         await axios.post(
-            `https://${process.env.API_DOMAIN}/v1/messages/${dest}`,
+            `http://host.docker.internal:8001/v1/messages/${dest}`,
             {
                 operationId,
                 message,
@@ -34,7 +34,7 @@ async function sendMessage(
 
 async function receiveMessages(queue: string) {
     try {
-        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBIT_SERVER_IP}:5672`
+        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@rabbitmq:5672`
         connection = await amqplib.connect(amqpServer)
         channel = await connection.createChannel()
         await channel.consume(queue, (data) => {

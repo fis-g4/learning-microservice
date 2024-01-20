@@ -12,7 +12,7 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - learning-network
+      - communication-microservice_communication-network
 
   mongo_db:
     image: mongo:6.0
@@ -26,7 +26,7 @@ services:
     volumes:
       - db:/data/db
     networks:
-      - learning-network
+      - communication-microservice_communication-network
 
   server:
     restart: always
@@ -64,7 +64,7 @@ services:
     env_file:
       - .env
     networks:
-      - learning-network
+      - communication-microservice_communication-network
 
   nginx:
     restart: always
@@ -82,7 +82,7 @@ services:
       - server
       - mongo_db
     networks:
-      - learning-network
+      - communication-microservice_communication-network
 
 # volumes:
 #   static:
@@ -97,10 +97,6 @@ volumes:
     name: learning-microservice-redis-data
 
 networks:
-  learning-network:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.5.0.0/16
+  communication-microservice_communication-network:
+    external: true
   
