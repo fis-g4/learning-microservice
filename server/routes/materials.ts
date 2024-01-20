@@ -26,13 +26,73 @@ const bucket = storage.bucket(bucketName)
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB
+        fileSize: 20 * 1024 * 1024,
     },
 })
 
+// TODO: REVISE
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
+}
+
+async function getUsedSpace(username: string): Promise<number> {
+    try {
+        const files = await bucket.getFiles()
+
+        let usedSpace = 0
+
+        files[0].forEach((file: any) => {
+            const regex = new RegExp(`^${username}-`)
+            if (file.name.match(regex)) {
+                usedSpace += file.metadata.size
+            }
+        })
+
+        return usedSpace
+    } catch (error) {
+        return 0
+    }
+}
+
+async function canUpload(
+    username: string,
+    plan: string,
+    newFileSize: number
+): Promise<boolean> {
+    const usedSpace = await getUsedSpace(username)
+
+    if (plan === 'FREE') {
+        return (
+            usedSpace + newFileSize < 5 * 1024 * 1024 * 1024 &&
+            newFileSize <= getPlanUploadLimit(plan)
+        )
+    } else if (plan === 'PREMIUM') {
+        return (
+            usedSpace + newFileSize < 12 * 1024 * 1024 * 1024 &&
+            newFileSize <= getPlanUploadLimit(plan)
+        )
+    } else if (plan === 'PRO') {
+        return (
+            usedSpace + newFileSize < 25 * 1024 * 1024 * 1024 &&
+            newFileSize <= getPlanUploadLimit(plan)
+        )
+    } else {
+        return false
+    }
+}
+
+function getPlanUploadLimit(plan: string): number {
+    switch (plan) {
+        case 'FREE':
+            return 5 * 1024 * 1024
+        case 'PREMIUM':
+            return 10 * 1024 * 1024
+        case 'PRO':
+            return 20 * 1024 * 1024
+        default:
+            return 0 // Valor predeterminado, ajusta según tus necesidades
+    }
 }
 
 // ------------------------ GET ROUTES ------------------------
@@ -181,6 +241,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
+        const plan = decodedToken.plan
 
         if (!username) {
             return res
@@ -215,7 +276,11 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         })
 
         let savedMaterial: MaterialDoc
-
+        if (!(await canUpload(username, plan, req.file.size))) {
+            return res.status(403).json({
+                error: 'Unauthorized: You have exceeded your storage limit',
+            })
+        }
         try {
             savedMaterial = await newMaterial.save()
         } catch (err: any) {
@@ -223,8 +288,10 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
                 .status(400)
                 .json({ error: err.message ?? 'Invalid data' })
         }
-
-        const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        const blob = bucket.file(
+            `${username}-${uuidv4()}-${req.file.originalname}`
+        )
         const blobStream = blob.createWriteStream({
             metadata: {
                 contentType: req.file.mimetype,
@@ -300,6 +367,7 @@ router.put(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
+            const plan: string = decodedToken.plan
             if (!username) {
                 return res
                     .status(401)
@@ -340,6 +408,11 @@ router.put(
             }
 
             if (req.file) {
+                if (!(await canUpload(username, plan, req.file.size))) {
+                    return res.status(403).json({
+                        error: 'Unauthorized: You have exceeded your storage limit',
+                    })
+                }
                 if (title) material.title = title
                 if (description) material.description = description
                 if (price) material.price = price
@@ -355,7 +428,11 @@ router.put(
                         .status(400)
                         .json({ error: err.message ?? 'Invalid data' })
                 }
-                const newFileName = `${uuidv4()}-${req.file.originalname}`
+                // const newFileName = `${uuidv4()}-${req.file.originalname}`
+                const newFileName = `${username}-${uuidv4()}-${
+                    req.file.originalname
+                }`
+
                 const blob = bucket.file(newFileName)
 
                 const blobStream = blob.createWriteStream({
