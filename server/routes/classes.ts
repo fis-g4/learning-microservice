@@ -17,7 +17,7 @@ const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
 
-const bucketName = 'classes-bucket'
+const bucketName = process.env.CLASSES_BUCKET ?? ''
 const bucket = storage.bucket(bucketName)
 
 const ERROR_CLASS_NOT_FOUND = 'Class not found'
@@ -96,6 +96,22 @@ function getPlanUploadLimit(plan: string): number {
     }
 }
 
+async function generateSignedUrls(publicUrl: string): Promise<any> {
+    try {
+        const [url] = await storage
+            .bucket(bucketName)
+            .file(publicUrl)
+            .getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 12 * 60 * 60 * 1000,
+            })
+
+        return { readUrl: url }
+    } catch {
+        return { readUrl: publicUrl }
+    }
+}
+
 router.get('/check', async (req: Request, res: Response) => {
     return res
         .status(200)
@@ -120,6 +136,9 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
         //TODO: Check if user is enrolled in the course
         const classData = await Class.findById(req.params.id)
         if (classData) {
+            const publicUrl: string = classData.file
+            const signedUrls = await generateSignedUrls(publicUrl)
+            classData.file = signedUrls
             return res.status(200).json(classData)
         } else {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })

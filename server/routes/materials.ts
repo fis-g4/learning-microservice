@@ -20,7 +20,7 @@ const router = express.Router()
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
-const bucketName = 'materials-bucket'
+const bucketName = process.env.MATERIAL_BUCKET ?? ''
 const bucket = storage.bucket(bucketName)
 
 const upload = multer({
@@ -30,7 +30,6 @@ const upload = multer({
     },
 })
 
-// TODO: REVISE
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
@@ -95,6 +94,22 @@ function getPlanUploadLimit(plan: string): number {
     }
 }
 
+async function generateSignedUrls(publicUrl: string): Promise<any> {
+    try {
+        const [url] = await storage
+            .bucket(bucketName)
+            .file(publicUrl)
+            .getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 12 * 60 * 60 * 1000,
+            })
+
+        return { readUrl: url }
+    } catch {
+        return { readUrl: publicUrl }
+    }
+}
+
 // ------------------------ GET ROUTES ------------------------
 
 router.get('/check', async (req: Request, res: Response) => {
@@ -137,9 +152,15 @@ router.get('/me', async (req: Request, res: Response) => {
                 .json({ error: 'Unauthenticated: You are not logged in' })
         }
 
-        await Material.find({ author: username }).then((materials) => {
-            res.status(200).send(materials.map((material) => material.toJSON()))
-        })
+        const materials = await Material.find({ author: username })
+
+        for (const material of materials) {
+            const publicUrl: string = material.file
+            const signedUrls = await generateSignedUrls(publicUrl)
+            material.file = signedUrls
+        }
+
+        res.status(200).json(materials.map((material) => material.toJSON()))
     } catch (error) {
         return res.status(500).send()
     }
@@ -166,6 +187,12 @@ router.get('/:id', async (req: Request, res: Response) => {
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
         }
+
+        const publicUrl: string = material.file
+
+        const signedUrls = await generateSignedUrls(publicUrl)
+        material.file = signedUrls
+
         if (
             material.author === username ||
             material.price === 0 ||
