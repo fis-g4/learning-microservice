@@ -596,7 +596,7 @@ describe('Materials API', () => {
             expect(response.status).toBe(401)
         })
 
-        it('Should return unauthenticated error', async () => {
+        it('Should return unauthorized error', async () => {
             findByIdMaterialMock.mockImplementation(async () =>
                 Promise.resolve(materials[0])
             )
