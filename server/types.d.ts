@@ -19,4 +19,6 @@ interface ClassInputs {
     description: string
     order: number
     file: string
+    courseId: string
+    creator: string
 }

@@ -1,16 +1,24 @@
 import express, { Request, Response } from 'express'
-import { IUser, getPayloadFromToken } from '../utils/jwtUtils'
+import {
+    IUser,
+    getPayloadFromToken,
+    getTokenFromRequest,
+} from '../utils/jwtUtils'
 
 import { Material, MaterialDoc } from '../db/models/material'
 
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
+import { sendMessage } from '../rabbitmq/operations'
+import redisClient from '../db/redis'
+
+import mongoose from 'mongoose'
 
 const router = express.Router()
 
 const storage = new Storage({
-    keyFilename: './GoogleCloudKey.json',
+    keyFilename: '../GoogleCloudKey.json',
 })
 const bucketName = 'materials-bucket'
 const bucket = storage.bucket(bucketName)
@@ -29,9 +37,38 @@ function getFileNameFromUrl(url: string): string | null {
 
 // ------------------------ GET ROUTES ------------------------
 
+router.get('/check', async (req: Request, res: Response) => {
+    return res
+        .status(200)
+        .json({ message: 'The materials service is working properly!' })
+})
+
+router.get('/', async (req: Request, res: Response) => {
+    try {
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
+        const username: string = decodedToken.username
+
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+
+        await Material.find({}).then((materials) => {
+            res.status(200).send(materials.map((material) => material.toJSON()))
+        })
+    } catch (error) {
+        return res.status(500).send()
+    }
+})
+
 router.get('/me', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
 
         if (!username) {
@@ -50,14 +87,22 @@ router.get('/me', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
                 .status(401)
                 .json({ error: 'Unauthenticated: You are not logged in' })
         }
-        const material = await Material.findById(req.params.id)
+        const materialId = req.params.id
+        const material = await Material.findById(materialId)
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
         }
@@ -66,7 +111,28 @@ router.get('/:id', async (req: Request, res: Response) => {
             material.price === 0 ||
             material.purchasers.includes(username)
         ) {
-            return res.status(200).json(material.toJSON())
+            let materialReview = null
+            await redisClient.exists(materialId).then(async (exists: any) => {
+                if (exists === 1) {
+                    await redisClient.get(materialId).then((reply: any) => {
+                        materialReview = reply
+                    })
+                } else {
+                    const message = JSON.stringify({
+                        materialId,
+                    })
+                    await sendMessage(
+                        'reviews-microservice',
+                        'requestMaterialReviews',
+                        process.env.API_KEY ?? '',
+                        message
+                    )
+                }
+            })
+
+            const materialJSON: Record<string, any> = material.toJSON()
+            materialJSON['review'] = materialReview
+            return res.status(200).json(materialJSON)
         }
         return res.status(403).json({
             error: 'Unauthorized: You are not the author of this material or you have not purchased it',
@@ -78,7 +144,14 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.get('/:id/users', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
@@ -104,7 +177,9 @@ router.get('/:id/users', async (req: Request, res: Response) => {
 
 router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
 
         if (!username) {
@@ -175,6 +250,40 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     }
 })
 
+router.post(
+    '/:id/course/:courseId/associate',
+    async (req: Request, res: Response) => {
+        const data = {
+            courseId: req.params.courseId,
+            classId: req.params.id,
+        }
+        await sendMessage(
+            'courses-microservice',
+            'notificationAssociateMaterial',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
+        return res.status(204).send()
+    }
+)
+
+router.post(
+    '/:id/course/:courseId/disassociate',
+    async (req: Request, res: Response) => {
+        const data = {
+            courseId: req.params.courseId,
+            classId: req.params.id,
+        }
+        await sendMessage(
+            'courses-microservice',
+            'notificationDisassociateMaterial',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
+        return res.status(204).send()
+    }
+)
+
 // ------------------------ PUT ROUTES ------------------------
 
 router.put(
@@ -182,7 +291,14 @@ router.put(
     upload.single('file'),
     async (req: Request, res: Response) => {
         try {
-            let decodedToken: IUser = getPayloadFromToken(req)
+            const idParameter = req.params.id
+            if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+                return res.status(400).json({ error: 'Invalid ID format' })
+            }
+
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
             const username: string = decodedToken.username
             if (!username) {
                 return res
@@ -297,7 +413,13 @@ router.put(
 
 router.delete('/:id', async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = getPayloadFromToken(req)
+        const idParameter = req.params.id
+        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
         const username: string = decodedToken.username
         if (!username) {
             return res
@@ -322,6 +444,15 @@ router.delete('/:id', async (req: Request, res: Response) => {
             await bucket.file(fileName).delete()
         }
         await Material.deleteOne({ _id: material._id })
+        const data = {
+            classId: req.params.id,
+        }
+        await sendMessage(
+            'courses-microservice',
+            'notificationNewClass',
+            process.env.API_KEY ?? '',
+            JSON.stringify(data)
+        )
         return res.status(204).send()
     } catch (error) {
         return res.status(500).send()

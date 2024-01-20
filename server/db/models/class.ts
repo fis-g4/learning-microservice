@@ -7,6 +7,8 @@ interface IClass {
     description: string //Description of the class
     order: number //If is the first class of the course, or the second...
     file: string //ID of the file in the blob-storage database
+    courseId: string //ID of the course that the class belongs to
+    creator: string //ID of the creator of the class
 }
 
 interface ClassDoc extends mongoose.Document {
@@ -14,6 +16,8 @@ interface ClassDoc extends mongoose.Document {
     description: string
     order: number
     file: string
+    courseId: string
+    creator: string
 }
 
 interface ClassModelInterface extends mongoose.Model<ClassDoc> {
@@ -42,6 +46,17 @@ const classSchema = new Schema({
         type: String,
         required: true,
     },
+    courseId: {
+        type: String,
+        ref: 'Course',
+        required: true,
+    },
+    creator: {
+        type: String,
+        ref: 'User',
+        required: true,
+    },
+
 });
 
 classSchema.set('toJSON', {

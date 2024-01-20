@@ -103,6 +103,8 @@ function populateClass() {
         description: 'Datos no estructurados',
         order: 1,
         file: 'fileId',
+        courseId: 'courseId1',
+        creator: authorId1,
     }).save()
 
     Class.build({
@@ -110,11 +112,13 @@ function populateClass() {
         description: 'Los datalakes',
         order: 2,
         file: 'fileId',
+        courseId: 'courseId1',
+        creator: authorId1,
     }).save()
 }
 
 async function populateDB() {
-    console.log('Populating DB...')
+    console.info('Populating DB...')
 
     if (process.env.NODE_ENV !== 'production') {
         User.collection.countDocuments().then((count) => {
@@ -134,7 +138,7 @@ async function populateDB() {
         })
     }
 
-    console.log('Populated!')
+    console.info('Database Populated!')
 }
 
 export default populateDB
