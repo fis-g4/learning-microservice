@@ -54,6 +54,8 @@ services:
     #   - static:/usr/src/app/flatter-backend/media
     expose:
       - 8000
+    ports:
+      - 8000:8000
     depends_on:
       - mongo_db
       - redis

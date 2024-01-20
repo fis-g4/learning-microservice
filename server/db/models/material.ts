@@ -9,6 +9,7 @@ interface IMaterial {
     currency: 'USD' | 'EUR' // Currency of the price
     author: string // username of the user who uploaded the material
     purchasers: string[] // Array of usernames that have purchased the material
+    courses: string[] // Array of courses that the material belongs to
     file: string // ID of the file in the blob-storage database
     type: 'book' | 'article' | 'presentation' | 'exercises' // Type of the file
 }
@@ -20,6 +21,7 @@ interface MaterialDoc extends mongoose.Document {
     currency: 'USD' | 'EUR'
     author: string
     purchasers: string[]
+    courses: string[]
     file: string
     type: 'book' | 'article' | 'presentation' | 'exercises'
 }
@@ -64,6 +66,15 @@ const materialSchema = new Schema({
             {
                 type: String,
                 ref: 'User',
+            },
+        ],
+        default: [],
+    },
+    courses: {
+        type: [
+            {
+                type: String,
+                ref: 'Course',
             },
         ],
         default: [],

@@ -6,6 +6,11 @@ import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
 import { sendMessage } from '../rabbitmq/operations'
 import mongoose from 'mongoose'
+import {
+    IUser,
+    getPayloadFromToken,
+    getTokenFromRequest,
+} from '../utils/jwtUtils'
 
 const router = express.Router()
 const storage = new Storage({
@@ -73,7 +78,16 @@ router.post(
     upload.single('file'),
     async (req: Request, res: Response) => {
         try {
-            //TODO: Get course from course microservice and add class to it
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+
+            if (!username) {
+                return res
+                    .status(401)
+                    .json({ error: 'Unauthenticated: You are not logged in' })
+            }
             const { title, description, order }: ClassInputs = req.body
 
             if (!title || !description || !order || !req.file) {
@@ -96,6 +110,8 @@ router.post(
                 description,
                 order,
                 file: 'dummy',
+                courseId: req.params.courseId,
+                creator: username,
             })
 
             const savedClass = await newClass.save()

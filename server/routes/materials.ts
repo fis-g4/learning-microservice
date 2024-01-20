@@ -122,7 +122,7 @@ router.get('/:id', async (req: Request, res: Response) => {
                         materialId,
                     })
                     await sendMessage(
-                        'reviews-microservice',
+                        'courses-microservice',
                         'requestMaterialReviews',
                         process.env.API_KEY ?? '',
                         message
@@ -209,6 +209,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
             price,
             author: username,
             purchasers: [],
+            courses: [],
             currency,
             file: 'dummy',
             type,
@@ -255,7 +256,7 @@ router.post(
     async (req: Request, res: Response) => {
         const data = {
             courseId: req.params.courseId,
-            classId: req.params.id,
+            materialId: req.params.id,
         }
         await sendMessage(
             'courses-microservice',
@@ -272,7 +273,7 @@ router.post(
     async (req: Request, res: Response) => {
         const data = {
             courseId: req.params.courseId,
-            classId: req.params.id,
+            materialId: req.params.id,
         }
         await sendMessage(
             'courses-microservice',
@@ -449,7 +450,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
         await sendMessage(
             'courses-microservice',
-            'notificationNewClass',
+            'notificationDisassociateMaterial',
             process.env.API_KEY ?? '',
             JSON.stringify(data)
         )

@@ -53,14 +53,9 @@ async function handleMessages(message: string) {
     const messageContent = jsonMessage.message
     if (operationId === 'requestAppClassesAndMaterials') {
         const courseId = messageContent.courseId
-        const classIds = messageContent.classIds
-        const materialIds = messageContent.materialIds
 
-        const classes = await Class.find({ _id: { $in: classIds } })
-
-        const materials = await Material.find({
-            _id: { $in: materialIds },
-        })
+        const classes = await Class.find({ courseId })
+        const materials = await Material.find({ courses: courseId })
 
         const data = {
             courseId,
@@ -74,7 +69,7 @@ async function handleMessages(message: string) {
             process.env.API_KEY ?? '',
             JSON.stringify(data)
         )
-    } else if (operationId === 'publishNewAccess') {
+    } else if (operationId === 'publishNewMaterialAccess') {
         const username = messageContent.username
         const materialId = messageContent.materialId
 
@@ -89,6 +84,39 @@ async function handleMessages(message: string) {
         const materialId = messageContent.materialId
         const review = messageContent.review
         await redisClient.set(materialId, review, { EX: FIVE_HOURS })
+    } else if (operationId === 'notificationUserDeletion') {
+        const username = messageContent.username
+        const userMaterials = await Material.find({ purchasers: username })
+        userMaterials.forEach(async (material) => {
+            material.purchasers = material.purchasers.filter(
+                (purchaser) => purchaser !== username
+            )
+            await material.save()
+        })
+        const ownedMaterials = await Material.find({ author: username })
+        ownedMaterials.forEach(async (material) => {
+            await material.deleteOne()
+        })
+        const ownedClasses = await Class.find({ creator: username })
+        ownedClasses.forEach(async (_class) => {
+            await _class.deleteOne()
+        })
+    } else if (operationId === 'notificationDeleteCourse') {
+        const courseId = messageContent.courseId
+        const courseMaterials = await Material.find({ courses: courseId })
+        courseMaterials.forEach(async (material) => {
+            material.courses = material.courses.filter(
+                (course) => course !== courseId
+            )
+            await material.save()
+        })
+        const courseClasses = await Class.find({ courseId })
+        courseClasses.forEach(async (_class) => {
+            await _class.deleteOne()
+        })
+    } else if (operationId === 'responseAppUsers') {
+        const users = messageContent.users
+        // Each user has a firstName,lastName,username,email,profilePicture,plan
     }
 }
 
