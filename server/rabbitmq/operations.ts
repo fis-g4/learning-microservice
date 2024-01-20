@@ -34,7 +34,7 @@ async function sendMessage(
 
 async function receiveMessages(queue: string) {
     try {
-        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@34.155.65.12:5672` // TODO: CHANGE TO API_DOMAIN
+        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBIT_SERVER_IP}:5672`
         connection = await amqplib.connect(amqpServer)
         channel = await connection.createChannel()
         await channel.consume(queue, (data) => {
