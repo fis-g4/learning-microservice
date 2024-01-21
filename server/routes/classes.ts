@@ -86,19 +86,28 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.post(
     '/course/:courseId',
-    authUser,
     upload.single('file'),
     async (req: Request, res: Response) => {
         try {
-            //TODO: Get course from course microservice and add class to it
-            const { title, description, order, creator, courseId }: ClassInputs = req.body
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+    
+            if (!username) {
+                return res
+                    .status(401)
+                    .json({ error: 'Unauthenticated: You are not logged in' })
+            }
+            const { title, description, order }: ClassInputs = req.body
             
-            if (!title || !description || !order || !creator || !courseId && !req.file) {
+            if (!title || !description || !order && !req.file) {
                 return res.status(400).json({
                     error: 'Missing required fields (title, description, order, file, creator, courseId)',
                 })
             }
-
+            const courseId = req.params.courseId
+            const creator = username
             // Verify file type
             const contentType = req.file.mimetype
 
@@ -112,6 +121,8 @@ router.post(
                 title,
                 description,
                 order,
+                creator,
+                courseId,
                 file: 'dummy',
             })
 
