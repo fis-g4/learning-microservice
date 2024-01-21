@@ -68,10 +68,6 @@ async function canUpload(
     const userUsedSpace: number = usedSpace + newFileSize
     const userUploadLimit = getPlanUploadLimit(plan)
 
-    console.log(usedSpace)
-    console.log(userUsedSpace)
-    console.log(userUploadLimit)
-
     if (userUsedSpace > userUploadLimit[1]) {
         return {
             success: false,
@@ -108,7 +104,7 @@ function getPlanUploadLimit(plan: string): number[] {
     }
 }
 
-async function generateSignedUrls(publicUrl: string): Promise<any> {
+async function generateSignedUrl(publicUrl: string): Promise<any> {
     try {
         const [url] = await storage
             .bucket(bucketName)
@@ -117,8 +113,6 @@ async function generateSignedUrls(publicUrl: string): Promise<any> {
                 action: 'read',
                 expires: Date.now() + 12 * 60 * 60 * 1000,
             })
-
-        console.log(url)
 
         return { readUrl: url }
     } catch {
@@ -172,8 +166,8 @@ router.get('/me', async (req: Request, res: Response) => {
 
         for (const material of materials) {
             const publicUrl: string = material.file
-            const signedUrls = await generateSignedUrls(publicUrl)
-            material.file = signedUrls
+            const signedUrl = await generateSignedUrl(publicUrl)
+            material.file = signedUrl.readUrl
         }
 
         res.status(200).json(materials.map((material) => material.toJSON()))
@@ -206,8 +200,8 @@ router.get('/:id', async (req: Request, res: Response) => {
 
         const publicUrl: string = material.file
 
-        const signedUrls = await generateSignedUrls(publicUrl)
-        material.file = signedUrls
+        const signedUrl = await generateSignedUrl(publicUrl)
+        material.file = signedUrl.readUrl
 
         if (
             material.author === username ||
@@ -349,7 +343,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         })
 
         blobStream.on('finish', async () => {
-            const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+            const publicUrl: string = `${blob.name}`
             savedMaterial.file = publicUrl
             await savedMaterial.save()
             return res
@@ -503,7 +497,7 @@ router.put(
                             await bucket.file(oldFileName).delete()
                         }
                     }
-                    const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                    const publicUrl: string = `${blob.name}`
                     updatedMaterial.file = publicUrl
                     const updatedMaterialWithFile: MaterialDoc =
                         await updatedMaterial.save()

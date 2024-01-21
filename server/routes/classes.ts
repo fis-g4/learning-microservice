@@ -106,7 +106,7 @@ function getPlanUploadLimit(plan: string): number[] {
     }
 }
 
-async function generateSignedUrls(publicUrl: string): Promise<any> {
+async function generateSignedUrl(publicUrl: string): Promise<any> {
     try {
         const [url] = await storage
             .bucket(bucketName)
@@ -147,8 +147,8 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
         const classData = await Class.findById(req.params.id)
         if (classData) {
             const publicUrl: string = classData.file
-            const signedUrls = await generateSignedUrls(publicUrl)
-            classData.file = signedUrls
+            const signedUrl = await generateSignedUrl(publicUrl)
+            classData.file = signedUrl.readUrl
             return res.status(200).json(classData)
         } else {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
@@ -234,7 +234,7 @@ router.post(
 
             //Case success
             blobStream.on('finish', async () => {
-                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                const publicUrl: string = `${blob.name}`
                 savedClass.file = publicUrl
                 const updatedClass = await savedClass.save()
                 const data = {
@@ -353,7 +353,7 @@ router.put(
                             await bucket.file(oldFileName).delete()
                         }
                     }
-                    const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                    const publicUrl: string = `${blob.name}`
                     updatedClass.file = publicUrl
                     const updatedClassWithFile = await updatedClass.save()
                     res.status(200).json(updatedClassWithFile)
