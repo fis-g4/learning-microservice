@@ -27,12 +27,14 @@ interface ClassModelInterface extends mongoose.Model<ClassDoc> {
 const classSchema = new Schema({
     title: {
         type: String,
+        trim: true,
         required: true,
         minLength: 1,
         maxLength: 140,
     },
     description: {
         type: String,
+        trim: true,
         required: true,
         minLength: 1,
         maxLength: 520,

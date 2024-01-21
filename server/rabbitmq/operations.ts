@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Material } from '../db/models/material'
 import { Class } from '../db/models/class'
 import redisClient from '../db/redis'
+import { MaterializedUser } from '../db/models/materializedUsers'
 
 let channel: Channel, connection: Connection
 const FIVE_HOURS = 60 * 60 * 5
@@ -116,7 +117,36 @@ async function handleMessages(message: string) {
         })
     } else if (operationId === 'responseAppUsers') {
         const users = messageContent.users
-        // Each user has a firstName,lastName,username,email,profilePicture,plan
+        for (const user of users) {
+            const username = user.username
+            const email = user.email
+            const firstName = user.firstName
+            const lastName = user.lastName
+            const profilePicture = user.profilePicture
+            const plan = user.plan
+
+            const materializedUser = await MaterializedUser.findOne({
+                username,
+            })
+            if (materializedUser) {
+                materializedUser.email = email
+                materializedUser.firstName = firstName
+                materializedUser.lastName = lastName
+                materializedUser.profilePicture = profilePicture
+                materializedUser.plan = plan
+                await materializedUser.save()
+            } else {
+                const newMaterializedUser = MaterializedUser.build({
+                    username,
+                    email,
+                    firstName,
+                    lastName,
+                    profilePicture,
+                    plan,
+                })
+                await newMaterializedUser.save()
+            }
+        }
     }
 }
 
