@@ -17,7 +17,7 @@ const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
 
-const bucketName = process.env.CLASSES_BUCKET ?? ''
+const bucketName = process.env.CLASSES_BUCKET ?? 'classes-bucket'
 const bucket = storage.bucket(bucketName)
 
 const ERROR_CLASS_NOT_FOUND = 'Class not found'

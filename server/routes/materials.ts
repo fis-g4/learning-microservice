@@ -20,7 +20,7 @@ const router = express.Router()
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
-const bucketName = process.env.MATERIAL_BUCKET ?? ''
+const bucketName = process.env.MATERIAL_BUCKET ?? 'materials-bucket'
 const bucket = storage.bucket(bucketName)
 
 const upload = multer({
