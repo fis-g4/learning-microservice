@@ -32,6 +32,11 @@ const upload = multer({
     },
 })
 
+interface UploadResult {
+    success: boolean
+    message?: string
+}
+
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
@@ -46,7 +51,7 @@ async function getUsedSpace(username: string): Promise<number> {
         files[0].forEach((file: any) => {
             const regex = new RegExp(`^${username}-`)
             if (file.name.match(regex)) {
-                usedSpace += file.metadata.size
+                usedSpace += parseInt(file.metadata.size.toString())
             }
         })
 
@@ -60,39 +65,44 @@ async function canUpload(
     username: string,
     plan: string,
     newFileSize: number
-): Promise<boolean> {
+): Promise<UploadResult> {
     const usedSpace = await getUsedSpace(username)
+    const userUsedSpace: number = usedSpace + newFileSize
+    const userUploadLimit = getPlanUploadLimit(plan)
 
-    if (plan === 'FREE') {
-        return (
-            usedSpace + newFileSize < 15 * 1024 * 1024 * 1024 &&
-            newFileSize <= getPlanUploadLimit(plan)
-        )
-    } else if (plan === 'PREMIUM') {
-        return (
-            usedSpace + newFileSize < 38 * 1024 * 1024 * 1024 &&
-            newFileSize <= getPlanUploadLimit(plan)
-        )
-    } else if (plan === 'PRO') {
-        return (
-            usedSpace + newFileSize < 75 * 1024 * 1024 * 1024 &&
-            newFileSize <= getPlanUploadLimit(plan)
-        )
-    } else {
-        return false
+    if (userUsedSpace + newFileSize > userUploadLimit[1]) {
+        return {
+            success: false,
+            message:
+                'You have exceeded your storage limit (' +
+                userUploadLimit[1] / 1024 / 1024 / 1024 +
+                ' GB)',
+        }
+    }
+
+    if (newFileSize > userUploadLimit[0]) {
+        return {
+            success: false,
+            message:
+                'Your file exceeds the maximum file size (' +
+                userUploadLimit[0] / 1024 / 1024 / 1024 +
+                ' GB)',
+        }
+    }
+
+    return {
+        success: true,
     }
 }
 
-function getPlanUploadLimit(plan: string): number {
+function getPlanUploadLimit(plan: string): number[] {
     switch (plan) {
-        case 'FREE':
-            return 1 * 1024 * 1024 * 1024
-        case 'PREMIUM':
-            return 2 * 1024 * 1024 * 1024
+        case 'ADVANCED':
+            return [2 * 1024 * 1024 * 1024, 38 * 1024 * 1024 * 1024]
         case 'PRO':
-            return 5 * 1024 * 1024 * 1024
+            return [5 * 1024 * 1024 * 1024, 75 * 1024 * 1024 * 1024]
         default:
-            return 0 // Valor predeterminado, ajusta según tus necesidades
+            return [1 * 1024 * 1024 * 1024, 15 * 1024 * 1024 * 1024]
     }
 }
 
@@ -178,9 +188,15 @@ router.post(
             // Verify file type
             const contentType = req.file.mimetype
 
-            if (!(await canUpload(username, plan, req.file.size))) {
+            const canUploadResult = await canUpload(
+                username,
+                plan,
+                req.file.size
+            )
+
+            if (!canUploadResult.success) {
                 return res.status(403).json({
-                    error: 'Unauthorized: You have exceeded your storage limit',
+                    error: canUploadResult.message,
                 })
             }
 
@@ -279,9 +295,15 @@ router.put(
 
             // Option 1: Update file (and fields)
             if (req.file) {
-                if (!(await canUpload(username, plan, req.file.size))) {
+                const canUploadResult = await canUpload(
+                    username,
+                    plan,
+                    req.file.size
+                )
+
+                if (!canUploadResult.success) {
                     return res.status(403).json({
-                        error: 'Unauthorized: You have exceeded your storage limit',
+                        error: canUploadResult.message,
                     })
                 }
                 if (title) _class.title = title
