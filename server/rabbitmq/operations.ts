@@ -3,7 +3,7 @@ import axios from 'axios'
 import { Material } from '../db/models/material'
 import { Class } from '../db/models/class'
 import redisClient from '../db/redis'
-import { MaterializedUser } from '../db/models/materializedUsers'
+import { MaterializedUser, PlanType } from '../db/models/materializedUsers'
 
 let channel: Channel, connection: Connection
 const FIVE_HOURS = 60 * 60 * 5
@@ -16,7 +16,7 @@ async function sendMessage(
 ) {
     try {
         await axios.post(
-            `http://host.docker.internal:8001/v1/messages/${dest}`,
+            `https://${process.env.API_DOMAIN}/v1/messages/${dest}`,
             {
                 operationId,
                 message,
@@ -35,7 +35,7 @@ async function sendMessage(
 
 async function receiveMessages(queue: string) {
     try {
-        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@rabbitmq:5672`
+        const amqpServer = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBIT_SERVER_IP}:5672`
         connection = await amqplib.connect(amqpServer)
         channel = await connection.createChannel()
         await channel.consume(queue, (data) => {
@@ -123,7 +123,7 @@ async function handleMessages(message: string) {
             const firstName = user.firstName
             const lastName = user.lastName
             const profilePicture = user.profilePicture
-            const plan = user.plan
+            const plan = getPlan(user.plan)
 
             const materializedUser = await MaterializedUser.findOne({
                 username,
@@ -134,6 +134,7 @@ async function handleMessages(message: string) {
                 materializedUser.lastName = lastName
                 materializedUser.profilePicture = profilePicture
                 materializedUser.plan = plan
+                materializedUser.insertDate = new Date()
                 await materializedUser.save()
             } else {
                 const newMaterializedUser = MaterializedUser.build({
@@ -151,3 +152,13 @@ async function handleMessages(message: string) {
 }
 
 export { receiveMessages, sendMessage }
+function getPlan(plan: any) {
+    switch (plan.toUpperCase()) {
+        case 'BASIC':
+            return PlanType.BASIC
+        case 'ADVANCED':
+            return PlanType.ADVANCED
+        case 'PRO':
+            return PlanType.PRO
+    }
+}

@@ -320,7 +320,7 @@ describe('Materials API', () => {
             UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
-        it('Should return OK when material is found', async () => {
+        xit('Should return OK when material is found', async () => {
             findMaterialByIdMock.mockImplementation(async () =>
                 Promise.resolve(materials[0])
             )

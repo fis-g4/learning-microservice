@@ -6,6 +6,7 @@ import {
 } from '../utils/jwtUtils'
 
 import { Material, MaterialDoc } from '../db/models/material'
+import { MaterializedUser, PlanType } from '../db/models/materializedUsers'
 
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
@@ -33,6 +34,27 @@ const upload = multer({
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
+}
+
+async function getUsersToRequest(usernames: string[]): Promise<string[]> {
+    const usernamesStored = await MaterializedUser.find({
+        username: { $in: usernames },
+    }).then((users) => {
+        return users.map((user) => user.toJSON())
+    })
+
+    const currentDate = new Date()
+    const yesterdayDate = new Date(currentDate)
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+
+    const usernamesStoredFiltered = usernamesStored.filter(
+        (user) => user.insertDate > yesterdayDate
+    )
+
+    return usernames.filter(
+        (username) =>
+            !usernamesStoredFiltered.some((user) => user.username === username)
+    )
 }
 
 // ------------------------ GET ROUTES ------------------------
@@ -163,7 +185,51 @@ router.get('/:id/users', async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Material not found' })
         }
         if (material.author === username) {
-            return res.status(200).json({ purchasers: material.purchasers })
+            const usernamesToRequest = await getUsersToRequest(
+                material.purchasers
+            )
+            if (usernamesToRequest.length > 0) {
+                const message = JSON.stringify({
+                    usernames: usernamesToRequest,
+                })
+                await sendMessage(
+                    'users-microservice',
+                    'requestAppUsers',
+                    process.env.API_KEY ?? '',
+                    message
+                )
+            }
+
+            let _res: any = []
+
+            const storedUsers = material.purchasers.filter(
+                (item) => !usernamesToRequest.includes(item)
+            )
+
+            for (const username of storedUsers) {
+                const user = await MaterializedUser.findOne({ username })
+                _res.push({
+                    username,
+                    firstName: user?.firstName ?? '',
+                    lastName: user?.lastName ?? '',
+                    email: user?.email ?? '',
+                    profilePicture: user?.profilePicture ?? '',
+                    plan: user?.plan ?? PlanType.BASIC,
+                })
+            }
+
+            usernamesToRequest.forEach((username) => {
+                _res.push({
+                    username,
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    profilePicture: '',
+                    plan: PlanType.BASIC,
+                })
+            })
+
+            return res.status(200).json({ purchasers: _res })
         }
         return res.status(403).json({
             error: 'Unauthorized: You are not the author of this material',

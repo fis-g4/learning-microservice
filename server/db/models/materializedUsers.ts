@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 
 const { Schema } = mongoose
 
-enum PlanType {
+export enum PlanType {
     BASIC = 'BASIC',
     ADVANCED = 'ADVANCED',
     PRO = 'PRO',
@@ -14,7 +14,7 @@ interface IMaterializedUser {
     username: string
     email: string
     profilePicture: string
-    plan: PlanType
+    plan: PlanType | undefined
 }
 
 interface MaterializedUserDoc extends mongoose.Document {
@@ -23,7 +23,7 @@ interface MaterializedUserDoc extends mongoose.Document {
     username: string
     email: string
     profilePicture: string
-    plan: PlanType
+    plan: PlanType | undefined
     insertDate: Date
 }
 
