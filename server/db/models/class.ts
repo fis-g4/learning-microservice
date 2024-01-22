@@ -27,12 +27,14 @@ interface ClassModelInterface extends mongoose.Model<ClassDoc> {
 const classSchema = new Schema({
     title: {
         type: String,
+        trim: true,
         required: true,
         minLength: 1,
         maxLength: 140,
     },
     description: {
         type: String,
+        trim: true,
         required: true,
         minLength: 1,
         maxLength: 520,
@@ -57,7 +59,7 @@ const classSchema = new Schema({
         required: true,
     },
 
-});
+})
 
 classSchema.set('toJSON', {
     transform: (document, returnedObject) => {
@@ -73,6 +75,7 @@ classSchema.statics.build = (classData: IClass) => {
 
 const Class = mongoose.model<ClassDoc, ClassModelInterface>(
     'Class',
-    classSchema)
+    classSchema
+)
 
-export { Class, ClassDoc };
+export { Class, ClassDoc }

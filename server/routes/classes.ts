@@ -6,15 +6,20 @@ import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
 import { sendMessage } from '../rabbitmq/operations'
 import mongoose from 'mongoose'
-import { IUser, getPayloadFromToken, getTokenFromRequest } from '../utils/jwtUtils'
 import axios from 'axios'
+import {
+    IUser,
+    getPayloadFromToken,
+    getTokenFromRequest,
+} from '../utils/jwtUtils'
+
 
 const router = express.Router()
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
 
-const bucketName = 'classes-bucket'
+const bucketName = process.env.CLASSES_BUCKET ?? 'classes-bucket'
 const bucket = storage.bucket(bucketName)
 
 const ERROR_CLASS_NOT_FOUND = 'Class not found'
@@ -25,13 +30,98 @@ const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime']
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 1024 * 1024 * 1024, // 1 GB
+        fileSize: 5 * 1024 * 1024 * 1024,
     },
 })
+
+interface UploadResult {
+    success: boolean
+    message?: string
+}
 
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
+}
+
+async function getUsedSpace(username: string): Promise<number> {
+    try {
+        const files = await bucket.getFiles()
+
+        let usedSpace = 0
+
+        files[0].forEach((file: any) => {
+            const regex = new RegExp(`^${username}-`)
+            if (file.name.match(regex)) {
+                usedSpace += parseInt(file.metadata.size.toString())
+            }
+        })
+
+        return usedSpace
+    } catch (error) {
+        return 0
+    }
+}
+
+async function canUpload(
+    username: string,
+    plan: string,
+    newFileSize: number
+): Promise<UploadResult> {
+    const usedSpace = await getUsedSpace(username)
+    const userUsedSpace: number = usedSpace + newFileSize
+    const userUploadLimit = getPlanUploadLimit(plan)
+
+    if (userUsedSpace + newFileSize > userUploadLimit[1]) {
+        return {
+            success: false,
+            message:
+                'You have exceeded your storage limit (' +
+                userUploadLimit[1] / 1024 / 1024 / 1024 +
+                ' GB)',
+        }
+    }
+
+    if (newFileSize > userUploadLimit[0]) {
+        return {
+            success: false,
+            message:
+                'Your file exceeds the maximum file size (' +
+                userUploadLimit[0] / 1024 / 1024 / 1024 +
+                ' GB)',
+        }
+    }
+
+    return {
+        success: true,
+    }
+}
+
+function getPlanUploadLimit(plan: string): number[] {
+    switch (plan) {
+        case 'ADVANCED':
+            return [2 * 1024 * 1024 * 1024, 38 * 1024 * 1024 * 1024]
+        case 'PRO':
+            return [5 * 1024 * 1024 * 1024, 75 * 1024 * 1024 * 1024]
+        default:
+            return [350 * 1024 * 1024, 900 * 1024 * 1024]
+    }
+}
+
+async function generateSignedUrl(publicUrl: string): Promise<any> {
+    try {
+        const [url] = await storage
+            .bucket(bucketName)
+            .file(publicUrl)
+            .getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 12 * 60 * 60 * 1000,
+            })
+
+        return { readUrl: url }
+    } catch {
+        return { readUrl: publicUrl }
+    }
 }
 
 router.get('/check', async (req: Request, res: Response) => {
@@ -74,6 +164,10 @@ router.get('/:id', async (req: Request, res: Response) => {
             // Llamar al microservicio de cursos para obtener el curso
             //const courseData = await axios.get(`https://api.javiercablop/v1/courses/${courseId}`)
             //console.log(courseData)
+
+            const publicUrl: string = classData.file
+            const signedUrl = await generateSignedUrl(publicUrl)
+            classData.file = signedUrl.readUrl
             return res.status(200).json(classData)
         } else {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
@@ -93,12 +187,16 @@ router.post(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
-    
+
+            const plan = decodedToken.plan
+
             if (!username) {
                 return res
                     .status(401)
                     .json({ error: 'Unauthenticated: You are not logged in' })
             }
+
+            //TODO: Get course from course microservice and add class to it
             const { title, description, order }: ClassInputs = req.body
             
             if (!title || !description || !order && !req.file) {
@@ -110,6 +208,18 @@ router.post(
             const creator = username
             // Verify file type
             const contentType = req.file.mimetype
+
+            const canUploadResult = await canUpload(
+                username,
+                plan,
+                req.file.size
+            )
+
+            if (!canUploadResult.success) {
+                return res.status(403).json({
+                    error: canUploadResult.message,
+                })
+            }
 
             if (!allowedMimeTypes.includes(contentType)) {
                 return res.status(400).json({
@@ -124,12 +234,17 @@ router.post(
                 creator,
                 courseId,
                 file: 'dummy',
+                courseId: req.params.courseId,
+                creator: username,
             })
 
             const savedClass = await newClass.save()
 
             //Save blob to storage
-            const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+            // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+            const blob = bucket.file(
+                `${username}-${uuidv4()}-${req.file.originalname}`
+            )
             const blobStream = blob.createWriteStream({
                 metadata: {
                     contentType: req.file.mimetype,
@@ -144,7 +259,7 @@ router.post(
 
             //Case success
             blobStream.on('finish', async () => {
-                const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                const publicUrl: string = `${blob.name}`
                 savedClass.file = publicUrl
                 const updatedClass = await savedClass.save()
                 const data = {
@@ -169,14 +284,25 @@ router.post(
 
 router.put(
     '/:id',
-    authUser,
     upload.single('file'),
     async (req: Request, res: Response) => {
         //TODO: Check if user is the author of the class
         try {
+            // const username: string = authUser.username
+            // const plan: string = authUser.plan
             const idParameter = req.params.id
             if (!mongoose.Types.ObjectId.isValid(idParameter)) {
                 return res.status(400).json({ error: 'Invalid ID format' })
+            }
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+            const plan: string = decodedToken.plan
+            if (!username) {
+                return res
+                    .status(401)
+                    .json({ error: 'Unauthenticated: You are not logged in' })
             }
             const _class = await Class.findById(req.params.id)
 
@@ -194,6 +320,17 @@ router.put(
 
             // Option 1: Update file (and fields)
             if (req.file) {
+                const canUploadResult = await canUpload(
+                    username,
+                    plan,
+                    req.file.size
+                )
+
+                if (!canUploadResult.success) {
+                    return res.status(403).json({
+                        error: canUploadResult.message,
+                    })
+                }
                 if (title) _class.title = title
                 if (description) _class.description = description
                 if (order) _class.order = order
@@ -216,7 +353,10 @@ router.put(
                         .json({ error: err.message ?? 'Invalid data' })
                 }
 
-                const newFileName = `${uuidv4()}-${req.file.originalname}`
+                // const newFileName = `${uuidv4()}-${req.file.originalname}`
+                const newFileName = `${username}-${uuidv4()}-${
+                    req.file.originalname
+                }`
                 const blob = bucket.file(newFileName)
 
                 const blobStream = blob.createWriteStream({
@@ -238,7 +378,7 @@ router.put(
                             await bucket.file(oldFileName).delete()
                         }
                     }
-                    const publicUrl = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                    const publicUrl: string = `${blob.name}`
                     updatedClass.file = publicUrl
                     const updatedClassWithFile = await updatedClass.save()
                     res.status(200).json(updatedClassWithFile)
