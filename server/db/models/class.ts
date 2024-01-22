@@ -58,6 +58,7 @@ const classSchema = new Schema({
         ref: 'User',
         required: true,
     },
+
 })
 
 classSchema.set('toJSON', {

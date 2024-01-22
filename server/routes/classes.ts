@@ -6,11 +6,13 @@ import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
 import { sendMessage } from '../rabbitmq/operations'
 import mongoose from 'mongoose'
+import axios from 'axios'
 import {
     IUser,
     getPayloadFromToken,
     getTokenFromRequest,
 } from '../utils/jwtUtils'
+
 
 const router = express.Router()
 const storage = new Storage({
@@ -137,15 +139,32 @@ router.get('/', authUser, async (req: Request, res: Response) => {
     }
 })
 
-router.get('/:id', authUser, async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
     try {
         const idParameter = req.params.id
         if (!mongoose.Types.ObjectId.isValid(idParameter)) {
             return res.status(400).json({ error: 'Invalid ID format' })
         }
-        //TODO: Check if user is enrolled in the course
+        
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
+        const username: string = decodedToken.username
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
+        
         const classData = await Class.findById(req.params.id)
         if (classData) {
+            // Obtener el curso al que pertenece la clase
+            const courseId = classData.courseId
+            /* A falta de probar que el cursoId sea de un curso que existe */
+            // Llamar al microservicio de cursos para obtener el curso
+            //const courseData = await axios.get(`https://api.javiercablop/v1/courses/${courseId}`)
+            //console.log(courseData)
+
             const publicUrl: string = classData.file
             const signedUrl = await generateSignedUrl(publicUrl)
             classData.file = signedUrl.readUrl
@@ -158,7 +177,6 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
     }
 })
 
-//TODO: Connect to course microservice in frontend
 
 router.post(
     '/course/:courseId',
@@ -169,6 +187,7 @@ router.post(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
+
             const plan = decodedToken.plan
 
             if (!username) {
@@ -176,15 +195,17 @@ router.post(
                     .status(401)
                     .json({ error: 'Unauthenticated: You are not logged in' })
             }
+
             //TODO: Get course from course microservice and add class to it
             const { title, description, order }: ClassInputs = req.body
-
-            if (!title || !description || !order || !req.file) {
+            
+            if (!title || !description || !order && !req.file) {
                 return res.status(400).json({
-                    error: 'Missing required fields (title, description, order, file)',
+                    error: 'Missing required fields (title, description, order, file, creator, courseId)',
                 })
             }
-
+            const courseId = req.params.courseId
+            const creator = username
             // Verify file type
             const contentType = req.file.mimetype
 
@@ -210,6 +231,8 @@ router.post(
                 title,
                 description,
                 order,
+                creator,
+                courseId,
                 file: 'dummy',
                 courseId: req.params.courseId,
                 creator: username,
@@ -249,7 +272,7 @@ router.post(
                     process.env.API_KEY ?? '',
                     JSON.stringify(data)
                 )
-                res.status(201).json(updatedClass)
+                res.status(201).json({message: 'Class created successfully'})
             })
 
             blobStream.end(req.file.buffer)
@@ -287,9 +310,9 @@ router.put(
                 return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
             }
 
-            const { title, description, order }: ClassInputs = req.body
+            const { title, description, order, creator, courseId }: ClassInputs = req.body
 
-            if (!title && !description && !order && !req.file) {
+            if (!title && !description && !order && !creator && !courseId  && !req.file) {
                 return res.status(400).json({
                     error: 'No fields to update provided',
                 })
@@ -384,37 +407,46 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
         if (!mongoose.Types.ObjectId.isValid(idParameter)) {
             return res.status(400).json({ error: 'Invalid ID format' })
         }
-
+        let decodedToken: IUser = await getPayloadFromToken(
+            getTokenFromRequest(req) ?? ''
+        )
+        const username: string = decodedToken.username
+        if (!username) {
+            return res
+                .status(401)
+                .json({ error: 'Unauthenticated: You are not logged in' })
+        }
         const classData = await Class.findById(req.params.id)
         if (classData) {
             const fileUrl = classData.file
             const fileName = fileUrl.split('/').pop()
-
-            try {
+            if (classData.creator === username) {
                 //Delete file from bucket
                 if (fileName !== undefined) {
                     await bucket.file(fileName).delete()
                 }
-            } catch (error) {
-                return res
-                    .status(500)
-                    .json({ error: 'Error deleting file from bucket' })
-            }
 
-            await classData.deleteOne()
-            const data = {
-                classId: req.params.id,
+                //await classData.deleteOne({ _id: classData.id })
+                await Class.deleteOne({ _id: classData.id })
+                const data = {
+                    classId: req.params.id,
+                }
+                await sendMessage(
+                    'courses-microservice',
+                    'notificationDeleteClass',
+                    process.env.API_KEY ?? '',
+                    JSON.stringify(data)
+                )
+                return res.status(204).send()
+            } else {
+                return res.status(403).json({ error: 'Unauthorized: You are not the author of this class' })
             }
-            await sendMessage(
-                'courses-microservice',
-                'notificationDeleteClass',
-                process.env.API_KEY ?? '',
-                JSON.stringify(data)
-            )
-            return res.status(204).send()
-        }
+        } else{
         return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
-    } catch (error) {
+        }
+    }
+    catch (error) {
+        console.log(error)
         return res.status(500).send()
     }
 })
