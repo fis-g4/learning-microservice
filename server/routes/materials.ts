@@ -280,18 +280,20 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
             file: 'dummy',
             type,
         })
-
         let savedMaterial: MaterialDoc
 
         try {
             savedMaterial = await newMaterial.save()
         } catch (err: any) {
+            console.log('caaaaaaaaaaaaaaaaaaaaaaaaaa')
+            console.log(err.message)
             return res
                 .status(400)
                 .json({ error: err.message ?? 'Invalid data' })
         }
 
         const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        console.log('daaaaaaaaaaaaaaaaaaaaaaaaaa')
         const blobStream = blob.createWriteStream({
             metadata: {
                 contentType: req.file.mimetype,
