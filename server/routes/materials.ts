@@ -119,6 +119,7 @@ async function generateSignedUrl(publicUrl: string): Promise<any> {
     } catch {
         return { readUrl: publicUrl }
     }
+}
 
 async function getUsersToRequest(usernames: string[]): Promise<string[]> {
     const usernamesStored = await MaterializedUser.find({
