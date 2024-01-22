@@ -6,7 +6,7 @@ import { Storage } from '@google-cloud/storage'
 import { authUser } from '../utils/auth/auth'
 import { sendMessage } from '../rabbitmq/operations'
 import mongoose from 'mongoose'
-import axios from 'axios'
+
 import {
     IUser,
     getPayloadFromToken,
@@ -241,12 +241,12 @@ router.post(
 
             const creator = username
             // Verify file type
-            const contentType = req.file.mimetype
+            const contentType = req.file?.mimetype ?? ''
 
             const canUploadResult = await canUpload(
                 username,
                 plan,
-                req.file.size
+                req.file?.size ?? 0
             )
 
             if (!canUploadResult.success) {
@@ -266,8 +266,8 @@ router.post(
                 description,
                 order,
                 file: 'dummy',
-                courseId: req.params.courseId,
-                creator: username,
+                courseId,
+                creator,
             })
 
             const savedClass = await newClass.save()
@@ -275,11 +275,11 @@ router.post(
             //Save blob to storage
             // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
             const blob = bucket.file(
-                `${username}-${uuidv4()}-${req.file.originalname}`
+                `${username}-${uuidv4()}-${req.file?.originalname}`
             )
             const blobStream = blob.createWriteStream({
                 metadata: {
-                    contentType: req.file.mimetype,
+                    contentType: req.file?.mimetype,
                 },
             })
 
@@ -307,7 +307,7 @@ router.post(
                 res.status(201).json({message: 'Class created successfully'})
             })
 
-            blobStream.end(req.file.buffer)
+            blobStream.end(req.file?.buffer)
         } catch (error) {
             res.status(500).json({ error: ERROR_SERVER })
         }
