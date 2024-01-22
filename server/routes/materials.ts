@@ -21,19 +21,104 @@ const router = express.Router()
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
-const bucketName = 'materials-bucket'
+const bucketName = process.env.MATERIAL_BUCKET ?? 'materials-bucket'
 const bucket = storage.bucket(bucketName)
 
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5 MB
+        fileSize: 20 * 1024 * 1024,
     },
 })
+
+interface UploadResult {
+    success: boolean
+    message?: string
+}
 
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
+}
+
+async function getUsedSpace(username: string): Promise<number> {
+    try {
+        const files = await bucket.getFiles()
+
+        let usedSpace: number = 0
+
+        files[0].forEach((file: any) => {
+            const regex = new RegExp(`^${username}-`)
+            if (file.name.match(regex)) {
+                usedSpace += parseInt(file.metadata.size.toString())
+            }
+        })
+
+        return usedSpace
+    } catch (error) {
+        return 0
+    }
+}
+
+async function canUpload(
+    username: string,
+    plan: string,
+    newFileSize: number
+): Promise<UploadResult> {
+    const usedSpace = await getUsedSpace(username)
+    const userUsedSpace: number = usedSpace + newFileSize
+    const userUploadLimit = getPlanUploadLimit(plan)
+
+    if (userUsedSpace > userUploadLimit[1]) {
+        return {
+            success: false,
+            message:
+                'You have exceeded your storage limit (' +
+                userUploadLimit[1] / 1024 / 1024 / 1024 +
+                ' GB)',
+        }
+    }
+
+    if (newFileSize > userUploadLimit[0]) {
+        return {
+            success: false,
+            message:
+                'Your file exceeds the maximum file size (' +
+                userUploadLimit[0] / 1024 / 1024 +
+                ' MB)',
+        }
+    }
+
+    return {
+        success: true,
+    }
+}
+
+function getPlanUploadLimit(plan: string): number[] {
+    switch (plan) {
+        case 'ADVANCED':
+            return [20 * 1024 * 1024, 25 * 1024 * 1024 * 1024]
+        case 'PRO':
+            return [10 * 1024 * 1024, 12 * 1024 * 1024 * 1024]
+        default:
+            return [5 * 1024 * 1024, 100 * 1024 * 1024]
+    }
+}
+
+async function generateSignedUrl(publicUrl: string): Promise<any> {
+    try {
+        const [url] = await storage
+            .bucket(bucketName)
+            .file(publicUrl)
+            .getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 12 * 60 * 60 * 1000,
+            })
+
+        return { readUrl: url }
+    } catch {
+        return { readUrl: publicUrl }
+    }
 }
 
 async function getUsersToRequest(usernames: string[]): Promise<string[]> {
@@ -99,9 +184,15 @@ router.get('/me', async (req: Request, res: Response) => {
                 .json({ error: 'Unauthenticated: You are not logged in' })
         }
 
-        await Material.find({ author: username }).then((materials) => {
-            res.status(200).send(materials.map((material) => material.toJSON()))
-        })
+        const materials = await Material.find({ author: username })
+
+        for (const material of materials) {
+            const publicUrl: string = material.file
+            const signedUrl = await generateSignedUrl(publicUrl)
+            material.file = signedUrl.readUrl
+        }
+
+        res.status(200).json(materials.map((material) => material.toJSON()))
     } catch (error) {
         return res.status(500).send()
     }
@@ -128,6 +219,12 @@ router.get('/:id', async (req: Request, res: Response) => {
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
         }
+
+        const publicUrl: string = material.file
+
+        const signedUrl = await generateSignedUrl(publicUrl)
+        material.file = signedUrl.readUrl
+
         if (
             material.author === username ||
             material.price === 0 ||
@@ -247,6 +344,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
+        const plan = decodedToken.plan
 
         if (!username) {
             return res
@@ -282,7 +380,13 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         })
 
         let savedMaterial: MaterialDoc
+        const canUploadResult = await canUpload(username, plan, req.file.size)
 
+        if (!canUploadResult.success) {
+            return res.status(403).json({
+                error: canUploadResult.message,
+            })
+        }
         try {
             savedMaterial = await newMaterial.save()
         } catch (err: any) {
@@ -290,8 +394,10 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
                 .status(400)
                 .json({ error: err.message ?? 'Invalid data' })
         }
-
-        const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
+        const blob = bucket.file(
+            `${username}-${uuidv4()}-${req.file.originalname}`
+        )
         const blobStream = blob.createWriteStream({
             metadata: {
                 contentType: req.file.mimetype,
@@ -304,7 +410,7 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
         })
 
         blobStream.on('finish', async () => {
-            const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+            const publicUrl: string = `${blob.name}`
             savedMaterial.file = publicUrl
             await savedMaterial.save()
             return res
@@ -367,6 +473,7 @@ router.put(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
+            const plan: string = decodedToken.plan
             if (!username) {
                 return res
                     .status(401)
@@ -407,6 +514,17 @@ router.put(
             }
 
             if (req.file) {
+                const canUploadResult = await canUpload(
+                    username,
+                    plan,
+                    req.file.size
+                )
+
+                if (!canUploadResult.success) {
+                    return res.status(403).json({
+                        error: canUploadResult.message,
+                    })
+                }
                 if (title) material.title = title
                 if (description) material.description = description
                 if (price) material.price = price
@@ -422,7 +540,11 @@ router.put(
                         .status(400)
                         .json({ error: err.message ?? 'Invalid data' })
                 }
-                const newFileName = `${uuidv4()}-${req.file.originalname}`
+                // const newFileName = `${uuidv4()}-${req.file.originalname}`
+                const newFileName = `${username}-${uuidv4()}-${
+                    req.file.originalname
+                }`
+
                 const blob = bucket.file(newFileName)
 
                 const blobStream = blob.createWriteStream({
@@ -442,7 +564,7 @@ router.put(
                             await bucket.file(oldFileName).delete()
                         }
                     }
-                    const publicUrl: string = `https://storage.googleapis.com/${bucketName}/${blob.name}`
+                    const publicUrl: string = `${blob.name}`
                     updatedMaterial.file = publicUrl
                     const updatedMaterialWithFile: MaterialDoc =
                         await updatedMaterial.save()
