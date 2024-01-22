@@ -100,7 +100,7 @@ function getPlanUploadLimit(plan: string): number[] {
         case 'PRO':
             return [10 * 1024 * 1024, 12 * 1024 * 1024 * 1024]
         default:
-            return [5 * 1024 * 1024, 5 * 1024 * 1024 * 1024]
+            return [5 * 1024 * 1024, 300 * 1024 * 1024]
     }
 }
 
