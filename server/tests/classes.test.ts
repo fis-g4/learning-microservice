@@ -90,6 +90,7 @@ const classes = [
 
 
 
+
 // Endpoints to test
 
 const ClassEndpoint = `${URL_BASE}/${classes[0]._id}`
@@ -231,19 +232,6 @@ describe('Classes API', () => {
             expect(response.status).toBe(401)
         })
 
-        
-        /* TODO: Fix this test
-        it('Should return unauthorized error', async () => {
-            findClassByIdMock.mockImplementation(async () =>
-                Promise.reject('Invalid token!')
-            )
-            const response = await request(app)
-                .get(ClassEndpoint)
-                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
-
-            expect(response.status).toBe(403)
-        })
-        */
 
         it('Should return not found when class is not found', async () => {
             findClassByIdMock.mockImplementation(async () =>
@@ -498,22 +486,6 @@ describe('Classes API', () => {
             expect(response.status).toBe(401)
         })
 
-        /* TODO: Fix this test
-        it('Should return unauthorized error', async () => {
-            const response = await request(app)
-                .put(ClassEndpoint)
-                .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
-                .field('title', 'Clase 1')
-                .field('order', 1)
-                .field('description', 'Descripción 1')
-                .attach('file', Buffer.from(''), {
-                    contentType: 'video/mp4',
-                    filename: 'mockedFile1.mp4',
-                });
-
-            expect(response.status).toBe(403)
-        })
-        */
         it('Class not found', async () => {
             findByIdClassMock.mockImplementation(async () =>
                 Promise.resolve()

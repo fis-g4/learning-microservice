@@ -39,6 +39,19 @@ interface UploadResult {
     message?: string
 }
 
+// Función de sustitución para simular la llamada al microservicio de cursos
+async function getCourseById(courseId: string) {
+    return {
+        _id: courseId,
+        title: 'Mock Course',
+        classes: [],
+        instructor: 'Mock Instructor',
+        price: 0,
+        currency: 'USD',
+        purchasers: [] as string[],
+        // ...
+    };
+}
 function getFileNameFromUrl(url: string): string | null {
     const match = url.match(/\/([^\/?#]+)[^\/]*$/)
     return match ? match[1] : null
@@ -160,10 +173,17 @@ router.get('/:id', async (req: Request, res: Response) => {
         if (classData) {
             // Obtener el curso al que pertenece la clase
             const courseId = classData.courseId
-            /* A falta de probar que el cursoId sea de un curso que existe */
-            // Llamar al microservicio de cursos para obtener el curso
-            //const courseData = await axios.get(`https://api.javiercablop/v1/courses/${courseId}`)
-            //console.log(courseData)
+
+            // Mock course
+            const course = await getCourseById(classData.courseId);
+
+            if (!course) {
+                return res.status(404).json({ error: 'Course not found' });
+            }
+
+            if (!(course.instructor === "Mock Instructor" || (course.purchasers.includes(username) || course.price === 0))) {
+                return res.status(403).json({ error: 'Unauthorized: You are not the authorized to get this course' });
+            }
 
             const publicUrl: string = classData.file
             const signedUrl = await generateSignedUrl(publicUrl)
@@ -204,7 +224,21 @@ router.post(
                     error: 'Missing required fields (title, description, order, file, creator, courseId)',
                 })
             }
-            const courseId = req.params.courseId
+            const course_Id = req.params.courseId
+
+            // Mock course
+            const course = await getCourseById(course_Id);
+
+            if (!course) {
+                return res.status(404).json({ error: 'Course not found' });
+            }
+
+            if (course.instructor !== "Mock Instructor") {
+                return res.status(403).json({ error: 'Unauthorized: You are not the instructor of this course' });
+            }
+
+            // end mock
+
             const creator = username
             // Verify file type
             const contentType = req.file.mimetype
@@ -231,8 +265,6 @@ router.post(
                 title,
                 description,
                 order,
-                creator,
-                courseId,
                 file: 'dummy',
                 courseId: req.params.courseId,
                 creator: username,
@@ -286,7 +318,6 @@ router.put(
     '/:id',
     upload.single('file'),
     async (req: Request, res: Response) => {
-        //TODO: Check if user is the author of the class
         try {
             // const username: string = authUser.username
             // const plan: string = authUser.plan
@@ -304,10 +335,14 @@ router.put(
                     .status(401)
                     .json({ error: 'Unauthenticated: You are not logged in' })
             }
+            
             const _class = await Class.findById(req.params.id)
 
             if (!_class) {
                 return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
+            }
+            if (username != _class.creator) {
+                return res.status(403).json({ error: 'Unauthorized: You are not the creator of this class' })
             }
 
             const { title, description, order, creator, courseId }: ClassInputs = req.body
