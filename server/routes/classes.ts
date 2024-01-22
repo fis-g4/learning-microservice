@@ -224,10 +224,10 @@ router.post(
                     error: 'Missing required fields (title, description, order, file, creator, courseId)',
                 })
             }
-            const course_Id = req.params.courseId
+            const courseId = req.params.courseId
 
             // Mock course
-            const course = await getCourseById(course_Id);
+            const course = await getCourseById(courseId);
 
             if (!course) {
                 return res.status(404).json({ error: 'Course not found' });
