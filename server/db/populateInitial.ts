@@ -39,6 +39,7 @@ function populateMaterial() {
         purchasers: [authorId2, authorId3],
         file: 'fileId',
         type: 'book',
+        courses: ['courseId1', 'courseId2'],
     }).save()
 
     Material.build({
@@ -50,6 +51,7 @@ function populateMaterial() {
         purchasers: [authorId1, authorId3],
         file: 'fileId2',
         type: 'exercises',
+        courses: ['courseId1'],
     }).save()
 
     Material.build({
@@ -61,6 +63,7 @@ function populateMaterial() {
         purchasers: [authorId2, authorId1],
         file: 'fileId47',
         type: 'book',
+        courses: ['courseId2'],
     }).save()
 
     Material.build({
@@ -72,6 +75,7 @@ function populateMaterial() {
         purchasers: [authorId2, authorId3],
         file: 'fileId',
         type: 'book',
+        courses: ['courseId3'],
     }).save()
 
     Material.build({
@@ -83,6 +87,7 @@ function populateMaterial() {
         purchasers: [authorId2],
         file: 'fileId',
         type: 'exercises',
+        courses: ['courseId3'],
     }).save()
 
     Material.build({
@@ -94,6 +99,7 @@ function populateMaterial() {
         purchasers: [authorId2, authorId3],
         file: 'fileId',
         type: 'book',
+        courses: ['courseId3'],
     }).save()
 }
 
@@ -103,6 +109,8 @@ function populateClass() {
         description: 'Datos no estructurados',
         order: 1,
         file: 'fileId',
+        courseId: 'courseId1',
+        creator: authorId1,
     }).save()
 
     Class.build({
@@ -110,6 +118,8 @@ function populateClass() {
         description: 'Los datalakes',
         order: 2,
         file: 'fileId',
+        courseId: 'courseId1',
+        creator: authorId1,
     }).save()
 }
 

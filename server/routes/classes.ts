@@ -211,6 +211,8 @@ router.post(
                 description,
                 order,
                 file: 'dummy',
+                courseId: req.params.courseId,
+                creator: username,
             })
 
             const savedClass = await newClass.save()
