@@ -171,7 +171,7 @@ jest.mock('redis', () => {
 
 // Send message function
 
-jest.mock('../rabbitmq/operations', () => {
+jest.mock('../utils/rabbitmq/operations', () => {
     return {
         sendMessage: jest.fn(),
     }
@@ -320,20 +320,6 @@ describe('Materials API', () => {
             findMaterialByIdMock = jest.spyOn(Material, 'findById')
             JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
             UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
-        })
-
-        xit('Should return OK when material is found', async () => {
-            findMaterialByIdMock.mockImplementation(async () =>
-                Promise.resolve(materials[0])
-            )
-            const response = await request(app)
-                .get(materialUsersEndpoint)
-                .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
-
-            expect(response.status).toBe(200)
-            expect(response.body).toHaveProperty('purchasers')
-            expect(response.body.purchasers.length).toBe(1)
-            expect(response.body.purchasers[0]).toBe(materials[0].purchasers[0])
         })
 
         it('Should return unauthenticated error', async () => {

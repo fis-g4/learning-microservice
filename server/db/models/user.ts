@@ -2,6 +2,10 @@ import mongoose from 'mongoose'
 
 const { Schema } = mongoose
 
+/**
+ * MODEL TO USE IN MICROSERVICE TESTS
+ */
+
 interface IUser {
     name: string
     username: string
