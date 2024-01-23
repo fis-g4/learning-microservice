@@ -22,6 +22,7 @@ import {
 import { getUsersToRequest } from '../utils/users/materializedView'
 import { authUser } from '../utils/auth/auth'
 import { handleError, isValidObjectId } from '../utils/routes/auxFunctions'
+import { getCourseById } from '../utils/mocks/courses'
 
 const router = express.Router()
 
@@ -210,10 +211,15 @@ router.get(
     authUser,
     async (req: Request, res: Response) => {
         try {
-            const idParameter = req.params.id
-            if (!isValidObjectId(idParameter, res)) {
-                return
+            const courseId = req.params.courseId
+
+            // Mock course
+            const course = await getCourseById(courseId)
+
+            if (!course) {
+                return res.status(404).json({ error: 'Course not found' })
             }
+
             let decodedToken: IUser = await getPayloadFromToken(
                 getTokenFromRequest(req) ?? ''
             )
