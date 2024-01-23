@@ -5,7 +5,7 @@ jest.setTimeout(30000)
 const learningTestBucketName = 'learning-files-test-bucket'
 
 const storage = new Storage({
-    keyFilename: '../../GoogleCloudKey.json',
+    keyFilename: '../GoogleCloudKey.json',
 })
 
 const learningTestBucket = storage.bucket(learningTestBucketName)
