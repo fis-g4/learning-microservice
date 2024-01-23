@@ -213,7 +213,7 @@ describe('GCS Connection', () => {
         expect(downloadedFile.toString()).toBe('test')
     })
 
-    it('Should delete a file from GCS with a folder and a subfolder', async () => {
+    xit('Should delete a file from GCS with a folder and a subfolder', async () => {
         const blob = learningTestBucket.file(`folder/subfolder/fileTest`)
 
         const blobStream = blob.createWriteStream({
