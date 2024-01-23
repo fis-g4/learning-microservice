@@ -48,17 +48,6 @@ router.get('/check', async (req: Request, res: Response) => {
         .json({ message: 'The materials service is working properly!' })
 })
 
-// TODO: CHECK IF THIS IS NEEDED
-router.get('/', authUser, async (req: Request, res: Response) => {
-    try {
-        await Material.find({}).then((materials) => {
-            res.status(200).send(materials.map((material) => material.toJSON()))
-        })
-    } catch (error) {
-        return res.status(500).send()
-    }
-})
-
 router.get('/me', authUser, async (req: Request, res: Response) => {
     try {
         let decodedToken: IUser = await getPayloadFromToken(

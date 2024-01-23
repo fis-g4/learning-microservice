@@ -17,7 +17,6 @@ const handleUnauthorizedError = (res: Response, message: string) => {
 }
 
 const handleError = (res: Response, error: any) => {
-    console.error(error)
     return res.status(500).json({ error: ERROR_SERVER })
 }
 
