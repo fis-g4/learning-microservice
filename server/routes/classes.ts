@@ -21,6 +21,8 @@ import { handleError, isValidObjectId } from '../utils/routes/auxFunctions'
 
 const router = express.Router()
 
+const COURSE_INSTRUCTOR = 'ivan'
+
 // Storage configuration
 
 const storage = new Storage({
@@ -73,8 +75,8 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
 
             if (
                 !(
-                    course.instructor === 'Mock Instructor' ||
-                    course.purchasers.includes(username) ||
+                    course.creator === COURSE_INSTRUCTOR ||
+                    course.access.includes(username) ||
                     course.price === 0
                 )
             ) {
@@ -109,17 +111,24 @@ router.get(
             // Mock course
             const course = await getCourseById(courseId)
 
+            if (!course) {
+                return res.status(404).json({ error: 'Course not found' })
+            }
+
             let decodedToken: IUser = await getPayloadFromToken(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
 
-            if (!course.purchasers.includes(username)) {
+            if (
+                !course.access.includes(username) &&
+                course.price !== 0 &&
+                course.creator !== username
+            ) {
                 return res.status(403).json({
                     error: 'Unauthorized: You are not the authorized to get this course',
                 })
             }
-            //
 
             const classes = await Class.find({ courseId })
 
@@ -174,7 +183,7 @@ router.post(
                 return res.status(404).json({ error: 'Course not found' })
             }
 
-            if (course.instructor !== 'Mock Instructor') {
+            if (course.creator !== COURSE_INSTRUCTOR) {
                 return res.status(403).json({
                     error: 'Unauthorized: You are not the instructor of this course',
                 })

@@ -22,7 +22,7 @@ enum UserRole {
 const TEST_USER = {
     firstName: 'Test',
     lastName: 'User',
-    username: 'TEST_USER',
+    username: 'ivan',
     password: 'testpassword',
     email: 'testemail@example.com',
     plan: PlanType.FREE,
@@ -59,8 +59,8 @@ const classes = [
         title: 'Clase 1',
         description: 'Descripción 1',
         file: 'https://mockedFile1.mp4',
-        creator: 'TEST_USER',
-        courseId: '615e2u3b1d9f9b2b4c9e9b1a',
+        creator: 'ivan',
+        courseId: '615e2f3b1d9f9b2b4c9e9b1a',
     }),
 
     new Class({
@@ -175,12 +175,10 @@ describe('Classes API', () => {
     describe('GET /classes/:id', () => {
         let findClassByIdMock: jest.SpyInstance
         let JSON_WEB_TOKEN: string
-        let UNAUTHORIZED_JWT: string
 
         beforeAll(async () => {
             findClassByIdMock = jest.spyOn(Class, 'findById')
             JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
-            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
         it('Should return OK when class is found and its review is in cache database', async () => {
@@ -263,7 +261,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
@@ -284,7 +282,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach(
                     'file',
                     Buffer.from('test file content', 'utf-8'),
@@ -325,7 +323,7 @@ describe('Classes API', () => {
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
@@ -345,7 +343,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
@@ -384,7 +382,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
@@ -410,7 +408,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 1)
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach(
                     'file',
                     Buffer.from('test file content', 'utf-8'),
@@ -507,7 +505,7 @@ describe('Classes API', () => {
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator', 'TEST_USER')
+                .field('creator', 'ivan')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',

@@ -225,7 +225,8 @@ router.get(
             for (const material of materials) {
                 if (
                     material.price === 0 ||
-                    material.purchasers.includes(username)
+                    material.purchasers.includes(username) ||
+                    material.author === username
                 ) {
                     const publicUrl: string = material.file
                     const signedUrl = await generateSignedUrl(
