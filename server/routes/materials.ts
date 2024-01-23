@@ -21,7 +21,7 @@ import {
 } from '../utils/googleCloud/storage'
 import { getUsersToRequest } from '../utils/users/materializedView'
 import { authUser } from '../utils/auth/auth'
-import { isValidObjectId } from '../utils/routes/auxFunctions'
+import { handleError, isValidObjectId } from '../utils/routes/auxFunctions'
 
 const router = express.Router()
 
@@ -69,7 +69,7 @@ router.get('/me', authUser, async (req: Request, res: Response) => {
 
         res.status(200).json(materials.map((material) => material.toJSON()))
     } catch (error) {
-        return res.status(500).send()
+        handleError(res, error)
     }
 })
 
@@ -132,7 +132,7 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
             error: 'Unauthorized: You are not the author of this material or you have not purchased it',
         })
     } catch (error) {
-        return res.status(500).send()
+        handleError(res, error)
     }
 })
 
@@ -201,7 +201,7 @@ router.get('/:id/users', authUser, async (req: Request, res: Response) => {
             error: 'Unauthorized: You are not the author of this material',
         })
     } catch (error) {
-        return res.status(500).send()
+        handleError(res, error)
     }
 })
 
@@ -239,7 +239,7 @@ router.get(
 
             res.status(200).json(materials.map((material) => material.toJSON()))
         } catch (error) {
-            return res.status(500).send()
+            handleError(res, error)
         }
     }
 )
@@ -336,7 +336,7 @@ router.post(
             })
             blobStream.end(req.file.buffer)
         } catch (error) {
-            return res.status(500).send()
+            handleError(res, error)
         }
     }
 )
@@ -410,7 +410,7 @@ router.post(
             )
             return res.status(204).send()
         } catch (error) {
-            return res.status(500).send()
+            handleError(res, error)
         }
     }
 )
@@ -553,7 +553,7 @@ router.put(
                 return res.status(200).json(updatedMaterial.toJSON())
             }
         } catch (error) {
-            return res.status(500).send()
+            handleError(res, error)
         }
     }
 )
@@ -600,7 +600,7 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
         )
         return res.status(204).send()
     } catch (error) {
-        return res.status(500).send()
+        handleError(res, error)
     }
 })
 

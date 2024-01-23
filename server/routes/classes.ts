@@ -31,7 +31,6 @@ const bucketName = process.env.CLASSES_BUCKET ?? 'classes-bucket'
 const bucket = storage.bucket(bucketName)
 
 const ERROR_CLASS_NOT_FOUND = 'Class not found'
-const ERROR_SERVER = 'Internal Server Error'
 
 const allowedMimeTypes = ['video/mp4', 'video/mpeg', 'video/quicktime']
 
@@ -254,7 +253,7 @@ router.post(
 
             blobStream.end(req.file?.buffer)
         } catch (error) {
-            res.status(500).json({ error: ERROR_SERVER })
+            handleError(res, error)
         }
     }
 )
@@ -394,8 +393,8 @@ router.put(
                 }
                 return res.status(200).json(updatedClass)
             }
-        } catch {
-            return res.status(500).json({ error: ERROR_SERVER })
+        } catch (error) {
+            handleError(res, error)
         }
     }
 )
@@ -443,8 +442,7 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
         }
     } catch (error) {
-        console.error(error)
-        return res.status(500).send()
+        handleError(res, error)
     }
 })
 
