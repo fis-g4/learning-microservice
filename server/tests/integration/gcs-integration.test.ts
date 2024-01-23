@@ -5,7 +5,7 @@ jest.setTimeout(30000)
 const learningTestBucketName = 'learning-files-test-bucket'
 
 const storage = new Storage({
-    keyFilename: '../GoogleCloudKey.json',
+    keyFilename: './GoogleCloudKey.json',
 })
 
 const learningTestBucket = storage.bucket(learningTestBucketName)
@@ -71,8 +71,7 @@ describe('GCS Connection', () => {
         expect(downloadedFile.toString()).toBe('test')
     })
 
-    // This test is skipped because in GitHub Actions it fails, but locally it works
-    xit('Should delete a file from GCS', async () => {
+    it('Should delete a file from GCS', async () => {
         const blob = learningTestBucket.file(`fileTest`)
 
         const blobStream = blob.createWriteStream({
@@ -143,8 +142,7 @@ describe('GCS Connection', () => {
         expect(downloadedFile.toString()).toBe('test')
     })
 
-    // This test is skipped because in GitHub Actions it fails, but locally it works
-    xit('Should delete a file from GCS with a folder', async () => {
+    it('Should delete a file from GCS with a folder', async () => {
         const blob = learningTestBucket.file(`folder/fileTest`)
 
         const blobStream = blob.createWriteStream({
