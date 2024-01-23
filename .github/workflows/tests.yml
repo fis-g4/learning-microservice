@@ -40,9 +40,6 @@ jobs:
               run: |
                   gpg --quiet --batch --yes --decrypt --passphrase="$GOOGLE_API_PW" \
                   --output $GITHUB_WORKSPACE/GoogleCloudKey.json GoogleCloudKey.json.gpg
-            - name: Print directory contents
-              run: |
-                ls -l $GITHUB_WORKSPACE
             - name: NPM test
               working-directory: ./server
               run: npm test
