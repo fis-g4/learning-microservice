@@ -171,7 +171,7 @@ jest.mock('redis', () => {
 
 // Send message function
 
-jest.mock('../rabbitmq/operations', () => {
+jest.mock('../utils/rabbitmq/operations', () => {
     return {
         sendMessage: jest.fn(),
     }

@@ -5,8 +5,8 @@ import { GoogleAuth } from 'google-auth-library'
 const JWT_SECRET: string = process.env.JWT_SECRET ?? ''
 
 enum PlanType {
-    FREE = 'FREE',
-    PREMIUM = 'PREMIUM',
+    FREE = 'BASIC',
+    PREMIUM = 'ADVANCED',
     PRO = 'PRO',
 }
 

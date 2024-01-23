@@ -1,4 +1,4 @@
-import { receiveMessages } from './rabbitmq/operations'
+import { receiveMessages } from './utils/rabbitmq/operations'
 import './loadEnvironment'
 import './db/conn'
 

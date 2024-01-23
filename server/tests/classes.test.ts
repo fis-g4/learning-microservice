@@ -4,7 +4,6 @@ import { generateToken } from '../utils/jwtUtils'
 import { Class } from '../db/models/class'
 import redisClient from '../db/redis'
 
-
 const app = require('../app')
 
 const URL_BASE = '/v1/classes'
@@ -52,11 +51,8 @@ const TEST_USER_3 = {
 const JSON_WEB_TOKEN =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7Il9pZCI6IjY1NzFiNzNjMjUyYWRlZWI4MDczODNjNiIsImZpcnN0TmFtZSI6Ik5vbWJyZSIsImxhc3ROYW1lIjoiQXBlbGxpZG8iLCJ1c2VybmFtZSI6Im1hcmlhIiwicGFzc3dvcmQiOiJjb250cmFzZW5hMTIzIiwiZW1haWwiOiJ1c3VhcmlvQGV4YW1wbGUuY29tIiwicGxhbiI6IlBSRU1JVU0iLCJyb2xlIjoiVVNFUiJ9LCJpYXQiOjE3MDIwNjI5MzksImV4cCI6MTczMzU5ODkzOX0.Hu0f9BoIzULvkZzfCWGvSSxofUTABK6D4PeGuNw_438'
 
-
-
 // Classes to use in tests
 const classes = [
-
     new Class({
         _id: '615e2f3b1d9f9b2b4c9e9b1a',
         __v: 0,
@@ -64,7 +60,7 @@ const classes = [
         description: 'Descripción 1',
         file: 'https://mockedFile1.mp4',
         creator: 'TEST_USER',
-        courseId: '615e2u3b1d9f9b2b4c9e9b1a'
+        courseId: '615e2u3b1d9f9b2b4c9e9b1a',
     }),
 
     new Class({
@@ -74,7 +70,7 @@ const classes = [
         description: 'Descripción 2',
         file: 'https://mockedFile1.mpeg',
         creator: 'TEST_USER_2',
-        courseId: '615e2f3b1y9f9b2b4c9e9b1a'
+        courseId: '615e2f3b1y9f9b2b4c9e9b1a',
     }),
 
     new Class({
@@ -84,12 +80,9 @@ const classes = [
         description: 'Descripción 3',
         file: 'https://mockedFile1.quicktime',
         creator: 'TEST_USER_3',
-        courseId: '615e2f3b1d9f9b2b4c9e9b¡5pa'
+        courseId: '615e2f3b1d9f9b2b4c9e9b¡5pa',
     }),
 ]
-
-
-
 
 // Endpoints to test
 
@@ -169,10 +162,9 @@ jest.mock('redis', () => {
     }
 })
 
-
 // Send message function
 
-jest.mock('../rabbitmq/operations', () => {
+jest.mock('../utils/rabbitmq/operations', () => {
     return {
         sendMessage: jest.fn(),
     }
@@ -180,7 +172,6 @@ jest.mock('../rabbitmq/operations', () => {
 
 // Classes API tests
 describe('Classes API', () => {
-    
     describe('GET /classes/:id', () => {
         let findClassByIdMock: jest.SpyInstance
         let JSON_WEB_TOKEN: string
@@ -189,14 +180,13 @@ describe('Classes API', () => {
         beforeAll(async () => {
             findClassByIdMock = jest.spyOn(Class, 'findById')
             JSON_WEB_TOKEN = (await generateToken(TEST_USER)) as string
-            console.log(JSON_WEB_TOKEN)
-            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string            
+            UNAUTHORIZED_JWT = (await generateToken(TEST_USER_3)) as string
         })
 
         it('Should return OK when class is found and its review is in cache database', async () => {
             jest.spyOn(redisClient, 'exists').mockImplementation(async () =>
-            Promise.resolve(0)
-        )
+                Promise.resolve(0)
+            )
             findClassByIdMock.mockImplementation(async () =>
                 Promise.resolve(classes[0])
             )
@@ -210,7 +200,7 @@ describe('Classes API', () => {
 
         it('Should return OK when class is found and its review is not in cache database', async () => {
             jest.spyOn(redisClient, 'exists').mockImplementation(async () =>
-            Promise.resolve(1)
+                Promise.resolve(1)
             )
             jest.spyOn(redisClient, 'get').mockImplementation(async () =>
                 Promise.resolve('5')
@@ -232,11 +222,8 @@ describe('Classes API', () => {
             expect(response.status).toBe(401)
         })
 
-
         it('Should return not found when class is not found', async () => {
-            findClassByIdMock.mockImplementation(async () =>
-                Promise.resolve()
-            )
+            findClassByIdMock.mockImplementation(async () => Promise.resolve())
             const response = await request(app)
                 .get(ClassEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
@@ -270,17 +257,17 @@ describe('Classes API', () => {
                 Promise.resolve(classes[0])
             )
             const response = await request(app)
-                .post(CourseClassesEndpoint)   
+                .post(CourseClassesEndpoint)
                 .set('Authorization', `Bearer ${JSON_WEB_TOKEN}`)
                 .field('title', 'Clase 1')
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                  });
+                })
             expect(response.status).toBe(201)
             expect(response.body.message).toBe('Class created successfully')
         })
@@ -297,15 +284,17 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach(
                     'file',
                     Buffer.from('test file content', 'utf-8'),
                     'mockedFile.txt'
-                );
+                )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe("Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.")
+            expect(response.body.error).toBe(
+                'Invalid file type. Only quicktime ,mp4 and mpeg video files are allowed.'
+            )
         })
 
         it('Missing fields', async () => {
@@ -322,7 +311,7 @@ describe('Classes API', () => {
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe(
@@ -336,11 +325,11 @@ describe('Classes API', () => {
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(401)
         })
@@ -356,11 +345,11 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(500)
         })
@@ -395,11 +384,11 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                  });
+                })
 
             expect(response.status).toBe(200)
             expect(response.body.title).toBe('Clase 1 actualizada')
@@ -421,7 +410,7 @@ describe('Classes API', () => {
                 .field('order', 1)
                 .field('description', 1)
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach(
                     'file',
                     Buffer.from('test file content', 'utf-8'),
@@ -429,7 +418,9 @@ describe('Classes API', () => {
                 )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe('Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.')
+            expect(response.body.error).toBe(
+                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.'
+            )
         })
 
         it('No fields to update provided', async () => {
@@ -470,7 +461,9 @@ describe('Classes API', () => {
                 )
 
             expect(response.status).toBe(400)
-            expect(response.body.error).toBe('Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.')
+            expect(response.body.error).toBe(
+                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.'
+            )
         })
 
         it('Should return unauthenticated error', async () => {
@@ -481,15 +474,13 @@ describe('Classes API', () => {
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(401)
         })
 
         it('Class not found', async () => {
-            findByIdClassMock.mockImplementation(async () =>
-                Promise.resolve()
-            )
+            findByIdClassMock.mockImplementation(async () => Promise.resolve())
 
             const response = await request(app)
                 .put('/v1/classes/615e2f3b1d9f9b2b4c9e9b1a')
@@ -499,7 +490,7 @@ describe('Classes API', () => {
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(404)
             expect(response.body.error).toBe('Class not found')
@@ -516,11 +507,11 @@ describe('Classes API', () => {
                 .field('title', 'Clase 1')
                 .field('description', 'Descripción 1')
                 .field('courseId', '615e2f3b1d9f9b2b4c9e9b1a')
-                .field('creator','TEST_USER')
+                .field('creator', 'TEST_USER')
                 .attach('file', Buffer.from(''), {
                     contentType: 'video/mp4',
                     filename: 'mockedFile1.mp4',
-                });
+                })
 
             expect(response.status).toBe(500)
         })
@@ -539,7 +530,7 @@ describe('Classes API', () => {
         })
 
         it('Should return OK when class is deleted', async () => {
-            findByIdClassMock.mockImplementation(async () =>  
+            findByIdClassMock.mockImplementation(async () =>
                 Promise.resolve(classes[0])
             )
 
@@ -570,13 +561,13 @@ describe('Classes API', () => {
                 .set('Authorization', `Bearer ${UNAUTHORIZED_JWT}`)
 
             expect(response.status).toBe(403)
-            expect(response.body.error).toBe("Unauthorized: You are not the author of this class")
+            expect(response.body.error).toBe(
+                'Unauthorized: You are not the author of this class'
+            )
         })
 
         it('Class not found', async () => {
-            findByIdClassMock.mockImplementation(async () =>
-                Promise.resolve()
-            )
+            findByIdClassMock.mockImplementation(async () => Promise.resolve())
 
             const response = await request(app)
                 .delete('/api/v1/class/615e2f3b1d9f9b2b4c9e9b1a')

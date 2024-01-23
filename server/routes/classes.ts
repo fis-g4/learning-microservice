@@ -1,20 +1,28 @@
 import express, { Request, Response } from 'express'
-import { Class, ClassDoc } from '../db/models/class'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
-import { authUser } from '../utils/auth/auth'
-import { sendMessage } from '../rabbitmq/operations'
-import mongoose from 'mongoose'
 
+import { Class, ClassDoc } from '../db/models/class'
+import { authUser } from '../utils/auth/auth'
+import { sendMessage } from '../utils/rabbitmq/operations'
 import {
     IUser,
     getPayloadFromToken,
     getTokenFromRequest,
 } from '../utils/jwtUtils'
-
+import {
+    canUpload,
+    generateSignedUrl,
+    getFileNameFromUrl,
+} from '../utils/googleCloud/storage'
+import { getCourseById } from '../utils/mocks/courses'
+import { handleError, isValidObjectId } from '../utils/routes/auxFunctions'
 
 const router = express.Router()
+
+// Storage configuration
+
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
 })
@@ -34,108 +42,7 @@ const upload = multer({
     },
 })
 
-interface UploadResult {
-    success: boolean
-    message?: string
-}
-
-// Función de sustitución para simular la llamada al microservicio de cursos
-async function getCourseById(courseId: string) {
-    return {
-        _id: courseId,
-        title: 'Mock Course',
-        classes: [],
-        instructor: 'Mock Instructor',
-        price: 0,
-        currency: 'USD',
-        purchasers: [] as string[],
-        // ...
-    };
-}
-function getFileNameFromUrl(url: string): string | null {
-    const match = url.match(/\/([^\/?#]+)[^\/]*$/)
-    return match ? match[1] : null
-}
-
-async function getUsedSpace(username: string): Promise<number> {
-    try {
-        const files = await bucket.getFiles()
-
-        let usedSpace = 0
-
-        files[0].forEach((file: any) => {
-            const regex = new RegExp(`^${username}-`)
-            if (file.name.match(regex)) {
-                usedSpace += parseInt(file.metadata.size.toString())
-            }
-        })
-
-        return usedSpace
-    } catch (error) {
-        return 0
-    }
-}
-
-async function canUpload(
-    username: string,
-    plan: string,
-    newFileSize: number
-): Promise<UploadResult> {
-    const usedSpace = await getUsedSpace(username)
-    const userUsedSpace: number = usedSpace + newFileSize
-    const userUploadLimit = getPlanUploadLimit(plan)
-
-    if (userUsedSpace + newFileSize > userUploadLimit[1]) {
-        return {
-            success: false,
-            message:
-                'You have exceeded your storage limit (' +
-                userUploadLimit[1] / 1024 / 1024 / 1024 +
-                ' GB)',
-        }
-    }
-
-    if (newFileSize > userUploadLimit[0]) {
-        return {
-            success: false,
-            message:
-                'Your file exceeds the maximum file size (' +
-                userUploadLimit[0] / 1024 / 1024 / 1024 +
-                ' GB)',
-        }
-    }
-
-    return {
-        success: true,
-    }
-}
-
-function getPlanUploadLimit(plan: string): number[] {
-    switch (plan) {
-        case 'ADVANCED':
-            return [2 * 1024 * 1024 * 1024, 38 * 1024 * 1024 * 1024]
-        case 'PRO':
-            return [5 * 1024 * 1024 * 1024, 75 * 1024 * 1024 * 1024]
-        default:
-            return [350 * 1024 * 1024, 900 * 1024 * 1024]
-    }
-}
-
-async function generateSignedUrl(publicUrl: string): Promise<any> {
-    try {
-        const [url] = await storage
-            .bucket(bucketName)
-            .file(publicUrl)
-            .getSignedUrl({
-                action: 'read',
-                expires: Date.now() + 12 * 60 * 60 * 1000,
-            })
-
-        return { readUrl: url }
-    } catch {
-        return { readUrl: publicUrl }
-    }
-}
+// ------------------------ GET ROUTES ------------------------
 
 router.get('/check', async (req: Request, res: Response) => {
     return res
@@ -143,6 +50,7 @@ router.get('/check', async (req: Request, res: Response) => {
         .json({ message: 'The classes service is working properly!' })
 })
 
+// TODO: CHECK IF THIS IS NEEDED
 router.get('/', authUser, async (req: Request, res: Response) => {
     try {
         const classes = await Class.find()
@@ -152,55 +60,105 @@ router.get('/', authUser, async (req: Request, res: Response) => {
     }
 })
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {
         const idParameter = req.params.id
-        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-            return res.status(400).json({ error: 'Invalid ID format' })
+        if (!isValidObjectId(idParameter, res)) {
+            return
         }
-        
+
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
-        const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
-        
-        const classData = await Class.findById(req.params.id)
-        if (classData) {
-            // Obtener el curso al que pertenece la clase
-            const courseId = classData.courseId
 
+        const username: string = decodedToken.username
+        const classData = await Class.findById(req.params.id)
+
+        if (classData) {
             // Mock course
-            const course = await getCourseById(classData.courseId);
+            const course = await getCourseById(classData.courseId)
 
             if (!course) {
-                return res.status(404).json({ error: 'Course not found' });
+                return res.status(404).json({ error: 'Course not found' })
             }
 
-            if (!(course.instructor === "Mock Instructor" || (course.purchasers.includes(username) || course.price === 0))) {
-                return res.status(403).json({ error: 'Unauthorized: You are not the authorized to get this course' });
+            if (
+                !(
+                    course.instructor === 'Mock Instructor' ||
+                    course.purchasers.includes(username) ||
+                    course.price === 0
+                )
+            ) {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the authorized to get this course',
+                })
             }
-
+            //
             const publicUrl: string = classData.file
-            const signedUrl = await generateSignedUrl(publicUrl)
+            const signedUrl = await generateSignedUrl(
+                publicUrl,
+                bucketName,
+                storage
+            )
             classData.file = signedUrl.readUrl
             return res.status(200).json(classData)
         } else {
             return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
         }
-    } catch {
-        return res.status(500).json({ error: ERROR_SERVER })
+    } catch (error) {
+        handleError(res, error)
     }
 })
 
+router.get(
+    '/course/:courseId',
+    authUser,
+    async (req: Request, res: Response) => {
+        try {
+            const courseId = req.params.courseId
+
+            // Mock course
+            const course = await getCourseById(courseId)
+
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+
+            if (!course.purchasers.includes(username)) {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the authorized to get this course',
+                })
+            }
+            //
+
+            const classes = await Class.find({ courseId })
+
+            for (const _class of classes) {
+                const publicUrl: string = _class.file
+                const signedUrl = await generateSignedUrl(
+                    publicUrl,
+                    bucketName,
+                    storage
+                )
+                _class.file = signedUrl.readUrl
+            }
+
+            return res
+                .status(200)
+                .json(classes.map((_class) => _class.toJSON()))
+        } catch (error) {
+            return handleError(res, error)
+        }
+    }
+)
+
+// ------------------------ POST ROUTES ------------------------
 
 router.post(
     '/course/:courseId',
     upload.single('file'),
+    authUser,
     async (req: Request, res: Response) => {
         try {
             let decodedToken: IUser = await getPayloadFromToken(
@@ -210,16 +168,10 @@ router.post(
 
             const plan = decodedToken.plan
 
-            if (!username) {
-                return res
-                    .status(401)
-                    .json({ error: 'Unauthenticated: You are not logged in' })
-            }
-
             //TODO: Get course from course microservice and add class to it
             const { title, description, order }: ClassInputs = req.body
-            
-            if (!title || !description || !order && !req.file) {
+
+            if (!title || !description || (!order && !req.file)) {
                 return res.status(400).json({
                     error: 'Missing required fields (title, description, order, file, creator, courseId)',
                 })
@@ -227,14 +179,16 @@ router.post(
             const courseId = req.params.courseId
 
             // Mock course
-            const course = await getCourseById(courseId);
+            const course = await getCourseById(courseId)
 
             if (!course) {
-                return res.status(404).json({ error: 'Course not found' });
+                return res.status(404).json({ error: 'Course not found' })
             }
 
-            if (course.instructor !== "Mock Instructor") {
-                return res.status(403).json({ error: 'Unauthorized: You are not the instructor of this course' });
+            if (course.instructor !== 'Mock Instructor') {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the instructor of this course',
+                })
             }
 
             // end mock
@@ -246,7 +200,9 @@ router.post(
             const canUploadResult = await canUpload(
                 username,
                 plan,
-                req.file?.size ?? 0
+                req.file?.size ?? 0,
+                bucket,
+                'class'
             )
 
             if (!canUploadResult.success) {
@@ -273,7 +229,6 @@ router.post(
             const savedClass = await newClass.save()
 
             //Save blob to storage
-            // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
             const blob = bucket.file(
                 `${username}-${uuidv4()}-${req.file?.originalname}`
             )
@@ -304,7 +259,7 @@ router.post(
                     process.env.API_KEY ?? '',
                     JSON.stringify(data)
                 )
-                res.status(201).json({message: 'Class created successfully'})
+                res.status(201).json({ message: 'Class created successfully' })
             })
 
             blobStream.end(req.file?.buffer)
@@ -314,40 +269,52 @@ router.post(
     }
 )
 
+// ------------------------ PUT ROUTES ------------------------
+
 router.put(
     '/:id',
     upload.single('file'),
+    authUser,
     async (req: Request, res: Response) => {
         try {
-            // const username: string = authUser.username
-            // const plan: string = authUser.plan
             const idParameter = req.params.id
-            if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-                return res.status(400).json({ error: 'Invalid ID format' })
+            if (!isValidObjectId(idParameter, res)) {
+                return
             }
+
             let decodedToken: IUser = await getPayloadFromToken(
                 getTokenFromRequest(req) ?? ''
             )
             const username: string = decodedToken.username
             const plan: string = decodedToken.plan
-            if (!username) {
-                return res
-                    .status(401)
-                    .json({ error: 'Unauthenticated: You are not logged in' })
-            }
-            
+
             const _class = await Class.findById(req.params.id)
 
             if (!_class) {
                 return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
             }
             if (username != _class.creator) {
-                return res.status(403).json({ error: 'Unauthorized: You are not the creator of this class' })
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the creator of this class',
+                })
             }
 
-            const { title, description, order, creator, courseId }: ClassInputs = req.body
+            const {
+                title,
+                description,
+                order,
+                creator,
+                courseId,
+            }: ClassInputs = req.body
 
-            if (!title && !description && !order && !creator && !courseId  && !req.file) {
+            if (
+                !title &&
+                !description &&
+                !order &&
+                !creator &&
+                !courseId &&
+                !req.file
+            ) {
                 return res.status(400).json({
                     error: 'No fields to update provided',
                 })
@@ -358,7 +325,9 @@ router.put(
                 const canUploadResult = await canUpload(
                     username,
                     plan,
-                    req.file.size
+                    req.file.size,
+                    bucket,
+                    'class'
                 )
 
                 if (!canUploadResult.success) {
@@ -388,7 +357,6 @@ router.put(
                         .json({ error: err.message ?? 'Invalid data' })
                 }
 
-                // const newFileName = `${uuidv4()}-${req.file.originalname}`
                 const newFileName = `${username}-${uuidv4()}-${
                     req.file.originalname
                 }`
@@ -426,8 +394,15 @@ router.put(
                 if (description) _class.description = description
                 if (order) _class.order = order
 
-                const savedClass = await _class.save()
-                return res.status(200).json(savedClass)
+                let updatedClass: ClassDoc
+                try {
+                    updatedClass = await _class.save()
+                } catch (err: any) {
+                    return res
+                        .status(400)
+                        .json({ error: err.message ?? 'Invalid data' })
+                }
+                return res.status(200).json(updatedClass)
             }
         } catch {
             return res.status(500).json({ error: ERROR_SERVER })
@@ -435,22 +410,19 @@ router.put(
     }
 )
 
+// ------------------------ DELETE ROUTES ------------------------
+
 router.delete('/:id', authUser, async (req: Request, res: Response) => {
-    //TODO: Check if user is the author of the class
     try {
         const idParameter = req.params.id
-        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-            return res.status(400).json({ error: 'Invalid ID format' })
+        if (!isValidObjectId(idParameter, res)) {
+            return
         }
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
+
         const classData = await Class.findById(req.params.id)
         if (classData) {
             const fileUrl = classData.file
@@ -461,7 +433,6 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
                     await bucket.file(fileName).delete()
                 }
 
-                //await classData.deleteOne({ _id: classData.id })
                 await Class.deleteOne({ _id: classData.id })
                 const data = {
                     classId: req.params.id,
@@ -474,14 +445,15 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
                 )
                 return res.status(204).send()
             } else {
-                return res.status(403).json({ error: 'Unauthorized: You are not the author of this class' })
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the author of this class',
+                })
             }
-        } else{
-        return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
+        } else {
+            return res.status(404).json({ error: ERROR_CLASS_NOT_FOUND })
         }
-    }
-    catch (error) {
-        console.log(error)
+    } catch (error) {
+        console.error(error)
         return res.status(500).send()
     }
 })

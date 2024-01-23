@@ -11,12 +11,21 @@ import { MaterializedUser, PlanType } from '../db/models/materializedUsers'
 import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 import { Storage } from '@google-cloud/storage'
-import { sendMessage } from '../rabbitmq/operations'
+import { sendMessage } from '../utils/rabbitmq/operations'
 import redisClient from '../db/redis'
 
-import mongoose from 'mongoose'
+import {
+    canUpload,
+    generateSignedUrl,
+    getFileNameFromUrl,
+} from '../utils/googleCloud/storage'
+import { getUsersToRequest } from '../utils/users/materializedView'
+import { authUser } from '../utils/auth/auth'
+import { isValidObjectId } from '../utils/routes/auxFunctions'
 
 const router = express.Router()
+
+// Storage configuration
 
 const storage = new Storage({
     keyFilename: '../GoogleCloudKey.json',
@@ -31,117 +40,6 @@ const upload = multer({
     },
 })
 
-interface UploadResult {
-    success: boolean
-    message?: string
-}
-
-function getFileNameFromUrl(url: string): string | null {
-    const match = url.match(/\/([^\/?#]+)[^\/]*$/)
-    return match ? match[1] : null
-}
-
-async function getUsedSpace(username: string): Promise<number> {
-    try {
-        const files = await bucket.getFiles()
-
-        let usedSpace: number = 0
-
-        files[0].forEach((file: any) => {
-            const regex = new RegExp(`^${username}-`)
-            if (file.name.match(regex)) {
-                usedSpace += parseInt(file.metadata.size.toString())
-            }
-        })
-
-        return usedSpace
-    } catch (error) {
-        return 0
-    }
-}
-
-async function canUpload(
-    username: string,
-    plan: string,
-    newFileSize: number
-): Promise<UploadResult> {
-    const usedSpace = await getUsedSpace(username)
-    const userUsedSpace: number = usedSpace + newFileSize
-    const userUploadLimit = getPlanUploadLimit(plan)
-
-    if (userUsedSpace > userUploadLimit[1]) {
-        return {
-            success: false,
-            message:
-                'You have exceeded your storage limit (' +
-                userUploadLimit[1] / 1024 / 1024 / 1024 +
-                ' GB)',
-        }
-    }
-
-    if (newFileSize > userUploadLimit[0]) {
-        return {
-            success: false,
-            message:
-                'Your file exceeds the maximum file size (' +
-                userUploadLimit[0] / 1024 / 1024 +
-                ' MB)',
-        }
-    }
-
-    return {
-        success: true,
-    }
-}
-
-function getPlanUploadLimit(plan: string): number[] {
-    switch (plan) {
-        case 'ADVANCED':
-            return [20 * 1024 * 1024, 25 * 1024 * 1024 * 1024]
-        case 'PRO':
-            return [10 * 1024 * 1024, 12 * 1024 * 1024 * 1024]
-        default:
-            return [5 * 1024 * 1024, 100 * 1024 * 1024]
-    }
-}
-
-async function generateSignedUrl(publicUrl: string): Promise<any> {
-    try {
-        const [url] = await storage
-            .bucket(bucketName)
-            .file(publicUrl)
-            .getSignedUrl({
-                action: 'read',
-                expires: Date.now() + 12 * 60 * 60 * 1000,
-            })
-
-        return { readUrl: url }
-    } catch {
-        return { readUrl: publicUrl }
-    }
-}
-
-async function getUsersToRequest(usernames: string[]): Promise<string[]> {
-    const usernamesStored = await MaterializedUser.find({
-        username: { $in: usernames },
-    }).then((users) => {
-        return users.map((user) => user.toJSON())
-    })
-
-    const currentDate = new Date()
-    const yesterdayDate = new Date(currentDate)
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-
-    const usernamesStoredFiltered = usernamesStored.filter(
-        (user) => user.insertDate > yesterdayDate
-    )
-
-    return usernames.filter(
-        (username) =>
-            !usernamesStoredFiltered.some((user) => user.username === username)
-    )
-}
-
 // ------------------------ GET ROUTES ------------------------
 
 router.get('/check', async (req: Request, res: Response) => {
@@ -150,19 +48,9 @@ router.get('/check', async (req: Request, res: Response) => {
         .json({ message: 'The materials service is working properly!' })
 })
 
-router.get('/', async (req: Request, res: Response) => {
+// TODO: CHECK IF THIS IS NEEDED
+router.get('/', authUser, async (req: Request, res: Response) => {
     try {
-        let decodedToken: IUser = await getPayloadFromToken(
-            getTokenFromRequest(req) ?? ''
-        )
-        const username: string = decodedToken.username
-
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
-
         await Material.find({}).then((materials) => {
             res.status(200).send(materials.map((material) => material.toJSON()))
         })
@@ -171,24 +59,22 @@ router.get('/', async (req: Request, res: Response) => {
     }
 })
 
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authUser, async (req: Request, res: Response) => {
     try {
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
 
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
-
         const materials = await Material.find({ author: username })
 
         for (const material of materials) {
             const publicUrl: string = material.file
-            const signedUrl = await generateSignedUrl(publicUrl)
+            const signedUrl = await generateSignedUrl(
+                publicUrl,
+                bucketName,
+                storage
+            )
             material.file = signedUrl.readUrl
         }
 
@@ -198,22 +84,18 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 })
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authUser, async (req: Request, res: Response) => {
     try {
         const idParameter = req.params.id
-        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-            return res.status(400).json({ error: 'Invalid ID format' })
+        if (!isValidObjectId(idParameter, res)) {
+            return
         }
 
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
+
         const materialId = req.params.id
         const material = await Material.findById(materialId)
         if (!material) {
@@ -222,7 +104,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 
         const publicUrl: string = material.file
 
-        const signedUrl = await generateSignedUrl(publicUrl)
+        const signedUrl = await generateSignedUrl(
+            publicUrl,
+            bucketName,
+            storage
+        )
         material.file = signedUrl.readUrl
 
         if (
@@ -261,22 +147,16 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 })
 
-router.get('/:id/users', async (req: Request, res: Response) => {
+router.get('/:id/users', authUser, async (req: Request, res: Response) => {
     try {
         const idParameter = req.params.id
-        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-            return res.status(400).json({ error: 'Invalid ID format' })
+        if (!isValidObjectId(idParameter, res)) {
+            return
         }
-
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
         const material = await Material.findById(req.params.id)
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
@@ -336,124 +216,213 @@ router.get('/:id/users', async (req: Request, res: Response) => {
     }
 })
 
+router.get(
+    '/course/:courseId',
+    authUser,
+    async (req: Request, res: Response) => {
+        try {
+            const idParameter = req.params.id
+            if (!isValidObjectId(idParameter, res)) {
+                return
+            }
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+            const materials = await Material.find({
+                courses: req.params.courseId,
+            })
+
+            for (const material of materials) {
+                if (
+                    material.price === 0 ||
+                    material.purchasers.includes(username)
+                ) {
+                    const publicUrl: string = material.file
+                    const signedUrl = await generateSignedUrl(
+                        publicUrl,
+                        bucketName,
+                        storage
+                    )
+                    material.file = signedUrl.readUrl
+                }
+            }
+
+            res.status(200).json(materials.map((material) => material.toJSON()))
+        } catch (error) {
+            return res.status(500).send()
+        }
+    }
+)
+
 // ------------------------ POST ROUTES ------------------------
 
-router.post('/', upload.single('file'), async (req: Request, res: Response) => {
-    try {
-        let decodedToken: IUser = await getPayloadFromToken(
-            getTokenFromRequest(req) ?? ''
-        )
-        const username: string = decodedToken.username
-        const plan = decodedToken.plan
-
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
-
-        const { title, description, price, currency, type }: MaterialInputs =
-            req.body
-
-        if (
-            !title ||
-            !description ||
-            !price ||
-            !currency ||
-            !req.file ||
-            !type
-        ) {
-            return res.status(400).json({
-                error: 'Missing required fields: title, description, price, currency (EUR or USD), file, type (book, article, presentation or exercises)',
-            })
-        }
-        const newMaterial: MaterialDoc = Material.build({
-            title,
-            description,
-            price,
-            author: username,
-            purchasers: [],
-            courses: [],
-            currency,
-            file: 'dummy',
-            type,
-        })
-
-        let savedMaterial: MaterialDoc
-        const canUploadResult = await canUpload(username, plan, req.file.size)
-
-        if (!canUploadResult.success) {
-            return res.status(403).json({
-                error: canUploadResult.message,
-            })
-        }
+router.post(
+    '/',
+    authUser,
+    upload.single('file'),
+    async (req: Request, res: Response) => {
         try {
-            savedMaterial = await newMaterial.save()
-        } catch (err: any) {
-            return res
-                .status(400)
-                .json({ error: err.message ?? 'Invalid data' })
-        }
-        // const blob = bucket.file(`${uuidv4()}-${req.file.originalname}`)
-        const blob = bucket.file(
-            `${username}-${uuidv4()}-${req.file.originalname}`
-        )
-        const blobStream = blob.createWriteStream({
-            metadata: {
-                contentType: req.file.mimetype,
-            },
-        })
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+            const plan = decodedToken.plan
 
-        blobStream.on('error', async (err) => {
-            await Material.deleteOne({ _id: savedMaterial._id })
+            const {
+                title,
+                description,
+                price,
+                currency,
+                type,
+            }: MaterialInputs = req.body
+
+            if (
+                !title ||
+                !description ||
+                !price ||
+                !currency ||
+                !req.file ||
+                !type
+            ) {
+                return res.status(400).json({
+                    error: 'Missing required fields: title, description, price, currency (EUR or USD), file, type (book, article, presentation or exercises)',
+                })
+            }
+            const newMaterial: MaterialDoc = Material.build({
+                title,
+                description,
+                price,
+                author: username,
+                purchasers: [],
+                courses: [],
+                currency,
+                file: 'dummy',
+                type,
+            })
+
+            let savedMaterial: MaterialDoc
+            const canUploadResult = await canUpload(
+                username,
+                plan,
+                req.file.size,
+                bucket,
+                'material'
+            )
+
+            if (!canUploadResult.success) {
+                return res.status(403).json({
+                    error: canUploadResult.message,
+                })
+            }
+            try {
+                savedMaterial = await newMaterial.save()
+            } catch (err: any) {
+                return res
+                    .status(400)
+                    .json({ error: err.message ?? 'Invalid data' })
+            }
+
+            const blob = bucket.file(
+                `${username}-${uuidv4()}-${req.file.originalname}`
+            )
+            const blobStream = blob.createWriteStream({
+                metadata: {
+                    contentType: req.file.mimetype,
+                },
+            })
+
+            blobStream.on('error', async (err) => {
+                await Material.deleteOne({ _id: savedMaterial._id })
+                return res.status(500).send()
+            })
+
+            blobStream.on('finish', async () => {
+                const publicUrl: string = `${blob.name}`
+                savedMaterial.file = publicUrl
+                await savedMaterial.save()
+                return res
+                    .status(201)
+                    .json({ message: 'Material created successfully' })
+            })
+            blobStream.end(req.file.buffer)
+        } catch (error) {
             return res.status(500).send()
-        })
-
-        blobStream.on('finish', async () => {
-            const publicUrl: string = `${blob.name}`
-            savedMaterial.file = publicUrl
-            await savedMaterial.save()
-            return res
-                .status(201)
-                .json({ message: 'Material created successfully' })
-        })
-        blobStream.end(req.file.buffer)
-    } catch (error) {
-        return res.status(500).send()
+        }
     }
-})
+)
 
 router.post(
     '/:id/course/:courseId/associate',
+    authUser,
     async (req: Request, res: Response) => {
-        const data = {
-            courseId: req.params.courseId,
-            materialId: req.params.id,
+        try {
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+            const material = await Material.findById(req.params.id)
+            if (!material) {
+                return res.status(404).json({ error: 'Material not found' })
+            }
+
+            if (material.author !== username) {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the author of this material',
+                })
+            }
+
+            const data = {
+                courseId: req.params.courseId,
+                materialId: req.params.id,
+            }
+            await sendMessage(
+                'courses-microservice',
+                'notificationAssociateMaterial',
+                process.env.API_KEY ?? '',
+                JSON.stringify(data)
+            )
+            return res.status(204).send()
+        } catch (error) {
+            return res.status(500).send()
         }
-        await sendMessage(
-            'courses-microservice',
-            'notificationAssociateMaterial',
-            process.env.API_KEY ?? '',
-            JSON.stringify(data)
-        )
-        return res.status(204).send()
     }
 )
 
 router.post(
     '/:id/course/:courseId/disassociate',
+    authUser,
     async (req: Request, res: Response) => {
-        const data = {
-            courseId: req.params.courseId,
-            materialId: req.params.id,
+        try {
+            let decodedToken: IUser = await getPayloadFromToken(
+                getTokenFromRequest(req) ?? ''
+            )
+            const username: string = decodedToken.username
+            const material = await Material.findById(req.params.id)
+            if (!material) {
+                return res.status(404).json({ error: 'Material not found' })
+            }
+
+            if (material.author !== username) {
+                return res.status(403).json({
+                    error: 'Unauthorized: You are not the author of this material',
+                })
+            }
+
+            const data = {
+                courseId: req.params.courseId,
+                materialId: req.params.id,
+            }
+            await sendMessage(
+                'courses-microservice',
+                'notificationDisassociateMaterial',
+                process.env.API_KEY ?? '',
+                JSON.stringify(data)
+            )
+            return res.status(204).send()
+        } catch (error) {
+            return res.status(500).send()
         }
-        await sendMessage(
-            'courses-microservice',
-            'notificationDisassociateMaterial',
-            process.env.API_KEY ?? '',
-            JSON.stringify(data)
-        )
-        return res.status(204).send()
     }
 )
 
@@ -465,8 +434,8 @@ router.put(
     async (req: Request, res: Response) => {
         try {
             const idParameter = req.params.id
-            if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-                return res.status(400).json({ error: 'Invalid ID format' })
+            if (!isValidObjectId(idParameter, res)) {
+                return
             }
 
             let decodedToken: IUser = await getPayloadFromToken(
@@ -517,7 +486,9 @@ router.put(
                 const canUploadResult = await canUpload(
                     username,
                     plan,
-                    req.file.size
+                    req.file.size,
+                    bucket,
+                    'material'
                 )
 
                 if (!canUploadResult.success) {
@@ -600,21 +571,17 @@ router.put(
 
 // ------------------------ DELETE ROUTES ------------------------
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authUser, async (req: Request, res: Response) => {
     try {
         const idParameter = req.params.id
-        if (!mongoose.Types.ObjectId.isValid(idParameter)) {
-            return res.status(400).json({ error: 'Invalid ID format' })
+        if (!isValidObjectId(idParameter, res)) {
+            return
         }
         let decodedToken: IUser = await getPayloadFromToken(
             getTokenFromRequest(req) ?? ''
         )
         const username: string = decodedToken.username
-        if (!username) {
-            return res
-                .status(401)
-                .json({ error: 'Unauthenticated: You are not logged in' })
-        }
+
         const material = await Material.findById(req.params.id)
         if (!material) {
             return res.status(404).json({ error: 'Material not found' })
