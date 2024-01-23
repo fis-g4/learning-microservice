@@ -92,20 +92,20 @@ router.get('/:id', authUser, async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Material not found' })
         }
 
-        const publicUrl: string = material.file
-
-        const signedUrl = await generateSignedUrl(
-            publicUrl,
-            bucketName,
-            storage
-        )
-        material.file = signedUrl.readUrl
-
         if (
             material.author === username ||
             material.price === 0 ||
             material.purchasers.includes(username)
         ) {
+            const publicUrl: string = material.file
+
+            const signedUrl = await generateSignedUrl(
+                publicUrl,
+                bucketName,
+                storage
+            )
+            material.file = signedUrl.readUrl
+
             let materialReview = null
             await redisClient.exists(materialId).then(async (exists: any) => {
                 if (exists === 1) {
