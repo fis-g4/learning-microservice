@@ -1,9 +1,12 @@
 name: Deploy to GCE
 
 on:
-  push:
+  workflow_run:
+    workflows: [Learning Microservice Tests] 
+    types:
+      - completed
     branches:
-      - "develop"
+      - main
 
 env:
   ENV_CONFIGURATION: ${{ secrets.ENV_CONFIGURATION }}

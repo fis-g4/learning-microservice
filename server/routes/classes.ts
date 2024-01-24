@@ -185,7 +185,7 @@ router.post(
 
             if (course.creator !== COURSE_INSTRUCTOR) {
                 return res.status(403).json({
-                    error: 'Unauthorized: You are not the instructor of this course',
+                    error: 'Unauthorized: You are not the creator of this course',
                 })
             }
 
@@ -343,7 +343,7 @@ router.put(
 
                 if (!allowedMimeTypes.includes(contentType)) {
                     return res.status(400).json({
-                        error: 'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.',
+                        error: 'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed',
                     })
                 }
                 let updatedClass: ClassDoc
@@ -444,7 +444,7 @@ router.delete('/:id', authUser, async (req: Request, res: Response) => {
                 return res.status(204).send()
             } else {
                 return res.status(403).json({
-                    error: 'Unauthorized: You are not the author of this class',
+                    error: 'Unauthorized: You are not the creator of this class',
                 })
             }
         } else {

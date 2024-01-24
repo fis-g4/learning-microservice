@@ -417,7 +417,7 @@ describe('Classes API', () => {
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe(
-                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.'
+                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed'
             )
         })
 
@@ -460,7 +460,7 @@ describe('Classes API', () => {
 
             expect(response.status).toBe(400)
             expect(response.body.error).toBe(
-                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed.'
+                'Invalid file type. Only quicktime,mp4 and mpeg video files are allowed'
             )
         })
 
@@ -560,7 +560,7 @@ describe('Classes API', () => {
 
             expect(response.status).toBe(403)
             expect(response.body.error).toBe(
-                'Unauthorized: You are not the author of this class'
+                'Unauthorized: You are not the creator of this class'
             )
         })
 

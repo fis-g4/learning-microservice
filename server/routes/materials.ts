@@ -380,7 +380,7 @@ router.post(
             )
             return res.status(204).send()
         } catch (error) {
-            return res.status(500).send()
+            handleError(res, error)
         }
     }
 )
@@ -507,7 +507,7 @@ router.put(
                         .status(400)
                         .json({ error: err.message ?? 'Invalid data' })
                 }
-                // const newFileName = `${uuidv4()}-${req.file.originalname}`
+
                 const newFileName = `${username}-${uuidv4()}-${
                     req.file.originalname
                 }`
