@@ -72,9 +72,9 @@ async function canUpload(
 function getMaterialPlanUploadLimit(plan: string): number[] {
     switch (plan) {
         case 'ADVANCED':
-            return [20 * 1024 * 1024, 25 * 1024 * 1024 * 1024]
+            return [20 * 1024 * 1024, 12 * 1024 * 1024 * 1024]
         case 'PRO':
-            return [10 * 1024 * 1024, 12 * 1024 * 1024 * 1024]
+            return [10 * 1024 * 1024, 25 * 1024 * 1024 * 1024]
         default:
             return [5 * 1024 * 1024, 100 * 1024 * 1024]
     }
