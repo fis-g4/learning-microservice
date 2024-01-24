@@ -1,22 +1,14 @@
-import express, { Express, Request, Response } from 'express'
-import cors from 'cors'
-import users from './routes/users'
+import { receiveMessages } from './utils/rabbitmq/operations'
 import './loadEnvironment'
 import './db/conn'
 
-const app: Express = express()
-
-app.use(express.json())
-app.use(cors())
-
-app.get('/', (req: Request, res: Response) => {
-    res.send('Hello World From the Typescript Server!')
-})
-
+const MICROSERVICE_QUEUE = 'learning_microservice'
 const port = process.env.PORT ?? 8000
 
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
-})
+const app = require('./app')
 
-app.use('/users', users)
+receiveMessages(MICROSERVICE_QUEUE)
+
+app.listen(port, () => {
+    console.info(`Learning microservice listening on port ${port}`)
+})

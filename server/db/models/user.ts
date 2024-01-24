@@ -2,27 +2,37 @@ import mongoose from 'mongoose'
 
 const { Schema } = mongoose
 
-interface IUser{
-    name: string;
-    email: string;
-    password: string;
+/**
+ * MODEL TO USE IN MICROSERVICE TESTS
+ */
+
+interface IUser {
+    name: string
+    username: string
+    email: string
+    password: string
 }
 
 interface UserDoc extends mongoose.Document {
-    name: string;
-    email: string;
-    password: string;
+    name: string
+    username: string
+    email: string
+    password: string
 }
 
 interface UserModelInterface extends mongoose.Model<UserDoc> {
-    build(attr: IUser): UserDoc;
+    build(attr: IUser): UserDoc
 }
-
 
 const userSchema = new Schema({
     name: {
         type: String,
         //required: true,
+    },
+    username: {
+        type: String,
+        required: true,
+        unique: true,
     },
     email: {
         type: String,

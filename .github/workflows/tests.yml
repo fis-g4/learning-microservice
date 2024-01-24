@@ -1,0 +1,43 @@
+name: Learning Microservice Tests
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
+    workflow_call:
+
+env:
+    JWT_SECRET: ${{secrets.JWT_SECRET}}
+    GCF_GENERATE_TOKEN_ENDPOINT: ${{secrets.GCF_GENERATE_TOKEN_ENDPOINT}}
+    GCF_VERIFY_TOKEN_ENDPOINT: ${{secrets.GCF_VERIFY_TOKEN_ENDPOINT}}
+    GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT: ${{secrets.GCF_GET_PAYLOAD_FROM_TOKEN_ENDPOINT}}
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                node-version: [16.x, 18.x]
+
+        steps:
+            - uses: actions/checkout@v3
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: 'npm'
+                  cache-dependency-path: ./server/package-lock.json
+            - name: NPM clean install
+              working-directory: ./server
+              run: npm ci
+            - name: Decrypt GoogleCloudKey.gpg
+              env:
+                  GOOGLE_API_PW: ${{secrets.GCP_CREDENTIALS_PK}}
+              run: |
+                  gpg --quiet --batch --yes --decrypt --passphrase="$GOOGLE_API_PW" \
+                  --output $GITHUB_WORKSPACE/GoogleCloudKey.json GoogleCloudKey.json.gpg
+            - name: NPM test
+              working-directory: ./server
+              run: npm test

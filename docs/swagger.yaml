@@ -1,0 +1,1268 @@
+---
+openapi: 3.0.0
+info:
+  title: Learning Microservice API
+  description: |
+    This microservice is responsible for managing the classes and materials of the learning application.  You can find out more about Learning Microservice at [GitHub repository](https://github.com/fis-g4/learning-microservice).
+  contact:
+    name: "Tomás Camero Borrego, Iván Moreno Grando & Miguel Romero Arjona"
+    email: migromarj@alum.us.es
+  license:
+    name: MIT
+    url: https://github.com/fis-g4/learning-microservice/blob/main/LICENSE
+  version: 1.0.0
+servers:
+- url: https://api.javiercavlop.com/v1
+tags:
+- name: materials
+  description: Operations about materials
+- name: classes
+  description: Operations about classes
+paths:
+  /materials/check:
+    get:
+      tags:
+      - materials
+      summary: Check if the materials microservice is working
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: The materials service is working properly!
+  /materials/me:
+    get:
+      tags:
+      - materials
+      summary: Get materials created by the logged-in user
+      description: Get materials created by the logged-in user
+      operationId: getMaterials
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                example:
+                - id: "123"
+                  title: Sample Material
+                  description: This is a sample material.
+                  price: 20
+                  currency: USD
+                  author: John Doe
+                  purchasers:
+                  - Alice
+                  - Bob
+                  courses:
+                  - Math 101
+                  - Physics 201
+                  type: book
+                  file: sample_material.pdf
+                items:
+                  $ref: '#/components/schemas/MaterialResponse'
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+  /materials/{id}/users:
+    get:
+      tags:
+      - materials
+      summary: Get users who purchased the material by ID
+      description: Get users who purchased the material by ID
+      operationId: getUsersForMaterial
+      parameters:
+      - name: id
+        in: path
+        description: The id of the material to get users who purchased it
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchasersResponse'
+              example:
+              - firstName: Alice
+                lastName: Johnson
+                username: alice123
+                email: alice@example.com
+                profilePicture: avatar_alice.jpg
+                plan: PRO
+              - firstName: Bob
+                lastName: Smith
+                username: bob456
+                email: bob@example.com
+                profilePicture: avatar_bob.jpg
+                plan: ADVANCED
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /materials/course/{courseId}:
+    get:
+      tags:
+      - materials
+      summary: Get associated course materials by course ID
+      operationId: getMaterialsForCourse
+      parameters:
+      - name: courseId
+        in: path
+        description: The id of the course to get the materials that are associated with it
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaterialResponse'
+              example:
+              - id: "789"
+                title: Programming Exercises
+                description: A collection of programming exercises for beginners.
+                price: 10
+                currency: USD
+                author: John Smith
+                purchasers:
+                - Eva
+                - Alex
+                courses:
+                - Programming Basics
+                type: exercises
+                file: programming_exercises.zip
+              - id: "865"
+                title: Programming Exercises 2
+                description: A collection of advanced programming exercises.
+                price: 22
+                currency: USD
+                author: John Smith
+                purchasers:
+                - Eva
+                courses:
+                - Programming Basics
+                type: exercises
+                file: programming_exercises_2.zip
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: Course not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /materials:
+    post:
+      tags:
+      - materials
+      summary: Add a new material
+      description: Creates a new material
+      operationId: addMaterial
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialBodyPOST'
+      responses:
+        "201":
+          description: Material created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: Material created successfully
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: "Missing required fields: title, description, price, currency (EUR or USD), file, type (book, article, presentation or exercises)"
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: You have exceeded your storage limit (5 GB)
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /materials/{id}/course/{courseId}/associate:
+    post:
+      tags:
+      - materials
+      summary: Add association between an specified material by its ID with a course.
+      operationId: addAssociationBetweenMaterialAndCourse
+      parameters:
+      - name: id
+        in: path
+        description: Id of the material to be associated with the course
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: courseId
+        in: path
+        description: Id of the course to which the material will be associated
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Association request sent to courses microservice
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /materials/{id}/course/{courseId}/disassociate:
+    post:
+      tags:
+      - materials
+      summary: Disassociation between an specified material by its ID with a course.
+      operationId: disassociationBetweenMaterialAndCourse
+      parameters:
+      - name: id
+        in: path
+        description: Id of the material to be disassociated with the course
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: courseId
+        in: path
+        description: Id of the course to which the material will be disassociated
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Association request sent to courses microservice
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /materials/{id}:
+    get:
+      tags:
+      - materials
+      summary: Get material by ID
+      description: Returns a single material
+      operationId: getMaterialById
+      parameters:
+      - name: id
+        in: path
+        description: The id of the material to retrieve
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialResponseWithReview'
+              example:
+                id: "123"
+                title: Sample Material
+                description: This is a sample material.
+                price: 20
+                currency: USD
+                author: John Doe
+                purchasers:
+                - Alice
+                - Bob
+                courses:
+                - Math 101
+                - Physics 201
+                type: book
+                file: sample_material.pdf
+                review: 3
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material or you have not purchased it"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - materials
+      summary: Update material by ID
+      description: Update an existing material
+      operationId: updateMaterial
+      parameters:
+      - name: id
+        in: path
+        description: The id of the material to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialBodyPUT'
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialResponse'
+              example:
+                id: "123"
+                title: Sample Material
+                description: This is a sample material.
+                price: 20
+                currency: USD
+                author: John Doe
+                purchasers:
+                - Alice
+                courses:
+                - Math 101
+                - Physics 201
+                type: book
+                file: sample_material.pdf
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No fields to update provided
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - materials
+      summary: Delete material by ID
+      description: Deletes a single material
+      operationId: deleteMaterialById
+      parameters:
+      - name: id
+        in: path
+        description: The id of the material to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Material deleted successfully
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this material"
+        "404":
+          description: Material not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Material not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+  /classes/check:
+    get:
+      tags:
+      - classes
+      summary: Check if the classes microservice is working
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: The classes service is working properly!
+  /classes/course/{courseId}:
+    get:
+      tags:
+      - classes
+      summary: Get associated course classes by course ID
+      operationId: getClassesForCourse
+      parameters:
+      - name: courseId
+        in: path
+        description: The id of the course to get the classes that are associated with it
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassResponse'
+              example:
+              - id: "123"
+                courseId: Physics201
+                creator: John Doe
+                title: Introduction to Calculus
+                description: Basic concepts of calculus.
+                order: 1
+                file: calculus_intro.mp4
+              - id: "456"
+                courseId: Physics201
+                creator: John Doe
+                title: Newton's Laws
+                description: Understanding Newton's laws of motion.
+                order: 2
+                file: newtons_laws.mp4
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the authorized to get this course"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: Course not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - classes
+      summary: Add a new class and associate it with a course
+      description: Creates a new class and associates it with the specified course
+      parameters:
+      - name: courseId
+        in: path
+        description: The id of the course to associate the class with
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassBodyPOST'
+      responses:
+        "201":
+          description: Class created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: Class created successfully
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Missing required fields (title, description, order, file, creator, courseId)"
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the creator of this course"
+        "404":
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: Course not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+  /classes/{id}:
+    get:
+      tags:
+      - classes
+      summary: Get class by ID
+      description: Returns a single class
+      operationId: getClassById
+      parameters:
+      - name: id
+        in: path
+        description: The id of the class to retrieve
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+              example:
+                id: "123"
+                courseId: Math101
+                creator: John Doe
+                title: Introduction to Calculus
+                description: Basic concepts of calculus.
+                order: 1
+                file: calculus_intro.mp4
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the authorized to get this course"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Class not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+    put:
+      tags:
+      - classes
+      summary: Update class by ID
+      description: Update an existing class
+      operationId: updateClass
+      parameters:
+      - name: id
+        in: path
+        description: The id of the class to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassBodyPUT'
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+              example:
+                id: "123"
+                courseId: Math101
+                creator: John Doe
+                title: Introduction to Calculus
+                description: Basic concepts of calculus.
+                order: 1
+                file: calculus_intro_v2.mp4
+        "400":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid file type. Only quicktime,mp4 and mpeg video files are allowed"
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this class"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - classes
+      summary: Delete class by ID
+      description: Deletes a single class
+      operationId: deleteClassById
+      parameters:
+      - name: id
+        in: path
+        description: The id of the class to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Class deleted successfully
+        "401":
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Unauthenticated: You are not logged in"
+        "403":
+          description: Permission error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized: You are not the author of this class"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Class not found
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Internal Server Error
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    MaterialBodyPOST:
+      required:
+      - currency
+      - description
+      - file
+      - price
+      - title
+      - type
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: array
+          items:
+            type: string
+          enum:
+          - USD
+          - EUR
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+    MaterialBodyPUT:
+      required:
+      - currency
+      - description
+      - file
+      - price
+      - purchasers
+      - title
+      - type
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: array
+          items:
+            type: string
+          enum:
+          - USD
+          - EUR
+        purchasers:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+    MaterialResponse:
+      required:
+      - author
+      - courses
+      - currency
+      - description
+      - file
+      - id
+      - price
+      - purchasers
+      - title
+      - type
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: string
+          enum:
+          - USD
+          - EUR
+        author:
+          type: string
+        purchasers:
+          type: array
+          items:
+            type: string
+        courses:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+    MaterialResponseWithReview:
+      required:
+      - author
+      - courses
+      - currency
+      - description
+      - file
+      - id
+      - price
+      - purchasers
+      - review
+      - title
+      - type
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        price:
+          maximum: 100
+          minimum: 0
+          type: number
+        currency:
+          type: string
+          enum:
+          - USD
+          - EUR
+        author:
+          type: string
+        purchasers:
+          type: array
+          items:
+            type: string
+        courses:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum:
+          - book
+          - article
+          - presentation
+          - exercises
+        file:
+          type: string
+        review:
+          maximum: 5
+          minimum: 1
+          type: number
+    ClassBodyPOST:
+      required:
+      - description
+      - file
+      - order
+      - title
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+    ClassBodyPUT:
+      required:
+      - courseId
+      - creator
+      - description
+      - file
+      - order
+      - title
+      type: object
+      properties:
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+        creator:
+          type: string
+        courseId:
+          type: string
+    ClassResponse:
+      required:
+      - courseId
+      - creator
+      - description
+      - file
+      - id
+      - order
+      - title
+      type: object
+      properties:
+        id:
+          type: string
+        courseId:
+          type: string
+        creator:
+          type: string
+        title:
+          maxLength: 140
+          minLength: 1
+          type: string
+        description:
+          maxLength: 500
+          minLength: 1
+          type: string
+        order:
+          minimum: 1
+          type: number
+        file:
+          type: string
+    PurchasersResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/PurchasersResponse_inner'
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    PurchasersResponse_inner:
+      required:
+      - email
+      - firstName
+      - lastName
+      - plan
+      - profilePicture
+      - username
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        profilePicture:
+          type: string
+        plan:
+          type: string
+          enum:
+          - FREE
+          - ADVANCED
+          - PRO
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
